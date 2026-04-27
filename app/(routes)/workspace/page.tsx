@@ -1,5 +1,5 @@
 "use client"
-
+export const dynamic = "force-dynamic";
 import React, { useState } from 'react'
 import dynamic from "next/dynamic"
 import WorkspaceHeader from './_components/WorkspaceHeader'
