@@ -1,9 +1,11 @@
 "use client"
 
 import React, { useState } from 'react'
+import dynamic from "next/dynamic"
 import WorkspaceHeader from './_components/WorkspaceHeader'
-import Editor from './_components/Editor'
-import Canvas from './_components/Canvas'
+
+const Editor = dynamic(() => import('./_components/Editor'), { ssr: false })
+const Canvas = dynamic(() => import('./_components/Canvas'), { ssr: false })
 
 function Workspace() {
   const [triggerSave, setTriggerSave] = useState(false)
