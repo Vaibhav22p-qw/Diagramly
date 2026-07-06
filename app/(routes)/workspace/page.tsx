@@ -21,7 +21,7 @@ function Workspace() {
     <div className="h-screen overflow-hidden">
       <WorkspaceHeader onSave={() => setTriggerSave(!triggerSave)} />
 
-      <div className="pt-16 grid grid-cols-1 md:grid-cols-2 h-[calc(100vh-4rem)]">
+      <div className="mt-0 grid grid-cols-1 md:grid-cols-2 h-[calc(100vh-4rem)]">
         <div className="overflow-auto">
           <Editor onSaveTrigger={triggerSave} />
         </div>
