@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/public/Diagramly-main/Diagramly-main/components/ui/input";
+import { Input } from "@/app/components/ui/input";
 import { Search } from "lucide-react";
 import Image from "next/image";
 import React, { useState } from "react";
