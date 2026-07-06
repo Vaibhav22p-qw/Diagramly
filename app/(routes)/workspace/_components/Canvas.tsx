@@ -1,28 +1,76 @@
-import React, { useEffect, useState } from 'react'
-import { Excalidraw, MainMenu, WelcomeScreen } from "@excalidraw/excalidraw";
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
+import {
+  Excalidraw,
+  MainMenu,
+  WelcomeScreen,
+  exportToBlob,
+} from "@excalidraw/excalidraw";
 
-function Canvas({ onSaveTrigger }: { onSaveTrigger?: any }) {
 
-  const [whiteBoardData, setWhiteBoardData] = useState<any>()
+const Canvas = forwardRef(({ onSaveTrigger }: any, ref: any) => {
+  const excalidrawAPI = useRef<any>(null);
+  const [whiteBoardData, setWhiteBoardData] = useState<any>();
 
   useEffect(() => {
     if (onSaveTrigger) {
-      console.log("Saved data:", whiteBoardData)
+      console.log("Saved data:", whiteBoardData);
     }
-  }, [onSaveTrigger])
+  }, [onSaveTrigger]);
+
+  // Export Excalidraw as Base64 Image
+  const exportCanvas = async () => {
+    if (!excalidrawAPI.current) return null;
+
+    const blob = await exportToBlob({
+      elements: excalidrawAPI.current.getSceneElements(),
+      appState: {
+        ...excalidrawAPI.current.getAppState(),
+        exportBackground: true,
+      },
+      files: excalidrawAPI.current.getFiles(),
+      mimeType: "image/png",
+    });
+
+    return await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Expose exportCanvas() to parent
+  useImperativeHandle(ref, () => ({
+  exportCanvas,
+}));
+
+console.log("Canvas mounted");
 
   return (
-    <div style={{ height: "670px" }}>
+    <div className="h-full">
       <Excalidraw
-        theme='light'
+        excalidrawAPI={(api) => {
+          excalidrawAPI.current = api;
+        }}
+        theme="light"
+        autoFocus={false}
         onChange={(elements) => setWhiteBoardData(elements)}
         UIOptions={{
           canvasActions: {
             loadScene: false,
             export: {
-              saveFileToDisk: true
-            }
-          }
+              saveFileToDisk: true,
+            },
+          },
         }}
       >
         <MainMenu>
@@ -40,7 +88,9 @@ function Canvas({ onSaveTrigger }: { onSaveTrigger?: any }) {
         </WelcomeScreen>
       </Excalidraw>
     </div>
-  )
-}
+  );
+});
 
-export default Canvas
+Canvas.displayName = "Canvas";
+
+export default Canvas;
