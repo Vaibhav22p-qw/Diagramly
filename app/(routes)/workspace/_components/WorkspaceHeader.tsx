@@ -1,11 +1,21 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/public/Diagramly-main/Diagramly-main/components/ui/input";
 import { Search } from "lucide-react";
 import Image from "next/image";
 import React, { useState } from "react";
 
-function WorkspaceHeader({ onSave }: any) {
+function WorkspaceHeader({
+  onSave,
+  fileName,
+  setFileName,
+}: {
+  onSave: () => void;
+  fileName: string;
+  setFileName: React.Dispatch<React.SetStateAction<string>>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const handleLiveToggle = () => {
   if (!isLive) {
@@ -29,9 +39,24 @@ function WorkspaceHeader({ onSave }: any) {
           height={40}
         />
 
-        <h2 className="text-lg font-semibold">
-          Untitled.docs
-        </h2>
+        {isEditing ? (
+          <Input
+            type="text"
+            autoFocus
+            value={fileName}
+            onChange={(e) => setFileName(e.target.value)}
+            onBlur={() => setIsEditing(false)}
+  onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+  className="text-lg font-semibold border-b border-red-500 outline-none bg-transparent"
+/>
+) : (
+  <h2
+    onClick={() => setIsEditing(true)}
+    className="text-lg font-semibold cursor-text"
+  >
+    {fileName}
+  </h2>
+)}
       </div>
 
       <div className="w-2/4 flex justify-center">
