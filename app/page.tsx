@@ -1,5 +1,30 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function Home() {
-  redirect("/workspace");
+  const router = useRouter();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.push("/workspace");
+    }, 3000); // 3 seconds
+
+    return () => clearTimeout(timer);
+  }, [router]);
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-white">
+      <Image
+        src="/logo-1.png"
+        alt="Diagramly"
+        width={220}
+        height={220}
+        priority
+        className="animate-pulse"
+      />
+    </div>
+  );
 }
