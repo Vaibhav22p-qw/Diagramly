@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import React, { useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./_components/WorkspaceHeader";
-import html2pdf from "html2pdf.js";
+
 
 const Editor = nextDynamic(() => import("./_components/Editor"), {
   ssr: false,
@@ -25,6 +25,7 @@ function Workspace() {
   const [fileName, setFileName] = useState("Untitled");
 
   const downloadPDF = async () => {
+    const html2pdf = (await import("html2pdf.js")).default;
     const editor = document.getElementById("editor-container");
 
     if (!editor) return;
