@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -31,14 +32,16 @@ function WorkspaceHeader({
 
   return (
     <header className="h-16 border-b bg-white px-6 flex items-center">
-      <div className="w-1/4 flex items-center gap-3">
-        <Image
-          src="/logo-1.png"
-          alt="Logo"
-          width={40}
-          height={40}
-        />
-
+      <div className="w-1/4 flex items-center gap-6">
+      <Link href="/">
+  <Image
+    src="/logo-1.png"
+    alt="Logo"
+    width={50}
+    height={50}
+    className="cursor-pointer hover:scale-105 transition-transform duration-200"
+  />
+</Link>
         {isEditing ? (
           <Input
             type="text"
@@ -47,15 +50,15 @@ function WorkspaceHeader({
             onChange={(e) => setFileName(e.target.value)}
             onBlur={() => setIsEditing(false)}
   onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
-  className="text-lg font-semibold border-b border-red-500 outline-none bg-transparent"
+  className="text-lg border-b border-red-500 outline-none bg-transparent"
 />
 ) : (
-  <h2
+  <h6
     onClick={() => setIsEditing(true)}
-    className="text-lg font-semibold cursor-text"
+    className="text-lg cursor-text"
   >
-    {fileName}
-  </h2>
+    <b>{fileName}</b><i>.pdf</i>
+  </h6>
 )}
       </div>
 
@@ -71,17 +74,18 @@ function WorkspaceHeader({
         </div>
       </div>
 
-      <div className="w-1/4 flex justify-end items-center gap-3">
+      <div>
     <Button
   onClick={handleLiveToggle}
   className={`relative w-20 h-7 rounded-full transition-colors duration-300 ${
     isLive ? "bg-red-500" : "bg-gray-300"
-  }`}>  <div className="w-14">
-    {isLive && (
-      <span className="px-1 py-1 rounded-full bg-red-500 text-white-1000 text-xs font-medium">
-        Live :
-      </span>
-    )}
+  }`}>
+    <div className="w-14">
+      {isLive && (
+        <span className="px-1 py-1 rounded-full bg-red-500 text-white-1000 text-xs font-medium">
+          Live :
+        </span>
+      )}
   </div>
   <span className={`absolute -top-1 -right-1 h-2 w-2 rounded-full transition-colors duration-300 ${
     isLive ? 'bg-green-500' : 'bg-red-500'
@@ -93,12 +97,13 @@ function WorkspaceHeader({
   />
   
 </Button>
-
+</div>
+<div className="w-1/4 flex justify-end items-center gap-7">
         <Button className="h-8 w-8 p-0 bg-transparent hover:bg-gray-100 transition-all duration-200 rounded-full">
           <img src="/sh.svg" alt="Share" className="h-5 w-5 object-contain" />
         </Button> 
 
-        <Button onClick={() => onSave()} className="h-8 w-8 p-0 bg-transparent hover:bg-blue-200 transition-all duration-10 rounded-full">
+        <Button onClick={() => onSave()} className="h-8 w-8 p-0 bg-transparent hover:bg-gray-200 transition-all duration-10 rounded-full">
           <img src="/dow.svg" alt="Save" className="h-5 w-5 object-contain" />
         </Button>
 
