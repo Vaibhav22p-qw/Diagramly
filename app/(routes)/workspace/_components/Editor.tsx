@@ -48,24 +48,24 @@ function Editor({ onSaveTrigger }: { onSaveTrigger?: any }) {
       holder: 'editorjs',
       data: rawDocument,
       tools: {
-        header: {
-          class: Header,
-          shortcut: 'CMD+SHIFT+H',
-          config: {
-            placeholder: 'Enter a Header'
-          }
-        },
-        list: {
-          class: List,
-          inlineToolbar: true
-        },
-        checklist: {
-          class: Checklist,
-          inlineToolbar: true
-        },
-        paragraph: Paragraph,
-        warning: Warning,
-      }
+  header: {
+    class: Header as any,
+    shortcut: "CMD+SHIFT+H",
+    config: {
+      placeholder: "Enter a Header",
+    },
+  },
+  list: {
+    class: List as any,
+    inlineToolbar: true,
+  },
+  checklist: {
+    class: Checklist as any,
+    inlineToolbar: true,
+  },
+  paragraph: Paragraph as any,
+  warning: Warning as any,
+},
     })
 
     ref.current = editor
