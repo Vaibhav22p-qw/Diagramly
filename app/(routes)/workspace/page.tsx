@@ -11,7 +11,12 @@ const Editor = nextDynamic(() => import("./_components/Editor"), {
   ssr: false,
 });
 
-import Canvas from "./_components/Canvas";
+const Canvas = nextDynamic(
+  () => import("./_components/Canvas"),
+  {
+    ssr: false,
+  }
+);
 
 function Workspace() {
   const canvasRef = useRef<any>(null);
