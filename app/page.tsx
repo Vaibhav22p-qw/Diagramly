@@ -10,7 +10,7 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push("/workspace");
-    }, 3000); // 3 seconds
+    }, 5000); 
 
     return () => clearTimeout(timer);
   }, [router]);
@@ -20,8 +20,8 @@ export default function Home() {
       <Image
         src="/logo-1.png"
         alt="Diagramly"
-        width={220}
-        height={220}
+        width={520}
+        height={520}
         priority
         className="animate-pulse"
       />
