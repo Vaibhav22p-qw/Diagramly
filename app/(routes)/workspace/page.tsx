@@ -7,7 +7,10 @@ import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./_components/WorkspaceHeader";
 import ViewSwitcher from "./_components/ViewSwitcher";
 
-
+const Compiler = nextDynamic(
+  () => import("./_components/Compiler"),
+  { ssr: false }
+);
 
 const Editor = nextDynamic(() => import("./_components/Editor"), {
   ssr: false,
@@ -21,7 +24,10 @@ const Canvas = nextDynamic(
 );
 
 function Workspace() {
-  const [view, setView] = useState<"document" | "both" | "canvas">("both");
+  const [showDocument, setShowDocument] = useState(true);
+const [showCompiler, setShowCompiler] = useState(false);
+const [showCanvas, setShowCanvas] = useState(true);
+  
   const canvasRef = useRef<any>(null);
 
   const [triggerSave, setTriggerSave] = useState(false);
@@ -100,7 +106,11 @@ container.appendChild(wrapper);
       })
       .save();
   };
-
+const visiblePanels = [
+  showDocument,
+  showCompiler,
+  showCanvas,
+].filter(Boolean).length;
   return (
     <div className="h-screen overflow-hidden">
       <WorkspaceHeader
@@ -109,29 +119,48 @@ container.appendChild(wrapper);
         onSave={downloadPDF}
       />
 
-      <ViewSwitcher view={view} setView={setView} />
+      <ViewSwitcher
+  showDocument={showDocument}
+  setShowDocument={setShowDocument}
+  showCompiler={showCompiler}
+  setShowCompiler={setShowCompiler}
+  showCanvas={showCanvas}
+  setShowCanvas={setShowCanvas}
+/>
 
-      <div
-  className={`h-[calc(100vh-7rem)] ${
-    view === "both"
-      ? "grid grid-cols-1 md:grid-cols-2"
-      : "grid grid-cols-1"
+    <div
+  className={`h-[calc(100vh-7rem)] grid ${
+    visiblePanels === 1
+      ? "grid-cols-1"
+      : visiblePanels === 2
+      ? "grid-cols-2"
+      : "grid-cols-3"
   }`}
 >
-  {(view === "document" || view === "both") && (
-    <div id="editor-container" className="overflow-auto">
-      <Editor onSaveTrigger={triggerSave} />
-    </div>
-  )}
-
-  {(view === "canvas" || view === "both") && (
-    <div className={`${view === "both" ? "border-l" : ""} overflow-hidden`}>
-      <Canvas
-        ref={canvasRef}
-        onSaveTrigger={triggerSave}
-      />
-    </div>
-  )}
+  {/* Document */}
+ {showDocument && (
+  <div
+    id="editor-container"
+    className="overflow-auto border-r"
+  >
+    <Editor onSaveTrigger={triggerSave}/>
+  </div>
+)}
+  {/* Compiler */}
+  {showCompiler && (
+  <div className="overflow-hidden border-r">
+    <Compiler/>
+  </div>
+)}
+  {/* Canvas */}
+  {showCanvas && (
+  <div className="overflow-hidden">
+    <Canvas
+      ref={canvasRef}
+      onSaveTrigger={triggerSave}
+    />
+  </div>
+)}
 </div>
     </div>
   );
