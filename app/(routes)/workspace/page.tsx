@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 import React, { useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./_components/WorkspaceHeader";
+import ViewSwitcher from "./_components/ViewSwitcher";
+
 
 
 const Editor = nextDynamic(() => import("./_components/Editor"), {
@@ -19,6 +21,7 @@ const Canvas = nextDynamic(
 );
 
 function Workspace() {
+  const [view, setView] = useState<"document" | "both" | "canvas">("both");
   const canvasRef = useRef<any>(null);
 
   const [triggerSave, setTriggerSave] = useState(false);
@@ -106,18 +109,30 @@ container.appendChild(wrapper);
         onSave={downloadPDF}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 h-[calc(100vh-4rem)]">
-        <div id="editor-container" className="overflow-auto">
-          <Editor onSaveTrigger={triggerSave} />
-        </div>
+      <ViewSwitcher view={view} setView={setView} />
 
-        <div className="border-l overflow-hidden">
-          <Canvas
-            ref={canvasRef}
-            onSaveTrigger={triggerSave}
-          />
-        </div>
-      </div>
+      <div
+  className={`h-[calc(100vh-7rem)] ${
+    view === "both"
+      ? "grid grid-cols-1 md:grid-cols-2"
+      : "grid grid-cols-1"
+  }`}
+>
+  {(view === "document" || view === "both") && (
+    <div id="editor-container" className="overflow-auto">
+      <Editor onSaveTrigger={triggerSave} />
+    </div>
+  )}
+
+  {(view === "canvas" || view === "both") && (
+    <div className={`${view === "both" ? "border-l" : ""} overflow-hidden`}>
+      <Canvas
+        ref={canvasRef}
+        onSaveTrigger={triggerSave}
+      />
+    </div>
+  )}
+</div>
     </div>
   );
 }
