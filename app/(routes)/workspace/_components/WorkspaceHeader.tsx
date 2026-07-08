@@ -75,27 +75,27 @@ function WorkspaceHeader({
       </div>
 
       <div>
-    <Button
+   <Button
   onClick={handleLiveToggle}
-  className={`relative w-20 h-7 rounded-full transition-colors duration-300 ${
-    isLive ? "bg-red-500" : "bg-gray-300"
-  }`}>
-    <div className="w-14">
-      {isLive && (
-        <span className="px-1 py-1 rounded-full bg-red-500 text-white-1000 text-xs font-medium">
-          Live :
-        </span>
-      )}
-  </div>
-  <span className={`absolute -top-1 -right-1 h-2 w-2 rounded-full transition-colors duration-300 ${
-    isLive ? 'bg-green-500' : 'bg-red-500'
-  }`}></span>
+  className={`relative flex items-center w-[78px] h-8 rounded-full px-1 transition-all duration-300 ${
+    isLive
+      ? "bg-red-500 shadow-md"
+      : "bg-gray-300 hover:bg-gray-400"
+  }`}
+>
+  {/* Live Label */}
+  {isLive && (
+    <span className="absolute left-2 text-[11px] font-semibold tracking-wide text-white select-none">
+      LIVE
+    </span>
+  )}
+
+  {/* Toggle Thumb */}
   <span
-    className={`absolute top-1 left-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-300 ${
-      isLive ? "translate-x-12" : ""
+    className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow-lg transition-all duration-300 ${
+      isLive ? "translate-x-[44px]" : "translate-x-0"
     }`}
   />
-  
 </Button>
 </div>
 <div className="w-1/4 flex justify-end items-center gap-10">
