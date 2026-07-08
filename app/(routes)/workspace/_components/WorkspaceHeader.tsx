@@ -42,23 +42,34 @@ function WorkspaceHeader({
     className="cursor-pointer hover:scale-105 transition-transform duration-200"
   />
 </Link>
-        {isEditing ? (
-          <Input
-            type="text"
-            autoFocus
-            value={fileName}
-            onChange={(e) => setFileName(e.target.value)}
-            onBlur={() => setIsEditing(false)}
-  onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
-  className="text-lg border-b border-red-500 outline-none bg-transparent"
-/>
+   
+{isEditing ? (
+  <div className="flex items-center rounded-lg bg-gray-100 px-2">
+    <Input
+      autoFocus
+      value={fileName}
+      onChange={(e) => setFileName(e.target.value)}
+      onBlur={() => setIsEditing(false)}
+      onKeyDown={(e) => e.key === "Enter" && setIsEditing(false)}
+      className="h-9 w-48 border-0 bg-transparent p-0 text-[15px] font-medium shadow-none focus-visible:ring-0"
+    />
+    <span className="text-[15px] font-medium text-gray-500">
+      .pdf
+    </span>
+  </div>
 ) : (
-  <h6
+  <button
     onClick={() => setIsEditing(true)}
-    className="text-lg cursor-text"
+    className="group flex h-9 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-gray-100"
   >
-    <b>{fileName}</b><i>.pdf</i>
-  </h6>
+    <span className="max-w-[220px] truncate text-[15px] font-medium text-gray-900">
+      {fileName}
+    </span>
+
+    <span className="text-[15px] text-gray-500">
+      .pdf
+    </span>
+  </button>
 )}
       </div>
 
