@@ -3,7 +3,7 @@
 import React from 'react'
 import Header from './_components/Header'
 import FileList from './_components/FileList'
-import AdBanner from './../../_components/AdBanner'
+
 
 function Dashboard() {
 
