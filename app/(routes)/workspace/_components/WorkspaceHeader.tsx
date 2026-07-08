@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -99,17 +98,28 @@ function WorkspaceHeader({
   
 </Button>
 </div>
-<div className="w-1/4 flex justify-end items-center gap-7">
-        <Button className="h-8 w-8 p-0 bg-transparent hover:bg-gray-100 transition-all duration-200 rounded-full">
-          <img src="/sh.svg" alt="Share" className="h-5 w-5 object-contain" />
-        </Button> 
+<div className="w-1/4 flex justify-end items-center gap-10">
+<div className="flex items-center gap-2">
 
-        <Button onClick={() => onSave()} className="h-8 w-8 p-0 bg-transparent hover:bg-gray-200 transition-all duration-10 rounded-full">
-          <img src="/dow.svg" alt="Save" className="h-5 w-5 object-contain" />
-        </Button>
+  <Button
+    variant="outline"
+    className="h-10 rounded-xl border-gray-200 bg-white px-4 shadow-sm hover:bg-gray-50"
+  >
+    <img src="/sh.svg" className="mr-2 h-4 w-4" />
+    Share
+  </Button>
 
-        <Button className="h-8 w-8 p-0 bg-transparent hover:bg-green-600 transition-all duration-200 rounded-full">
-          <img src="/p.png" alt="Profile" className="h-7 w-7 rounded-full object-cover" />
+  <Button
+    onClick={() => onSave()}
+    className="h-10 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 text-white shadow-lg hover:from-blue-700 hover:to-indigo-700"
+  >
+    <img src="/dow.svg" className="mr-2 h-4 w-4 invert" />
+    Save
+  </Button>
+
+</div>
+        <Button className="h-10 w-10 p-0 bg-transparent hover:bg-green-600 transition-all duration-200 rounded-full">
+          <img src="/p.png" alt="Profile" className="h-9 w-9 rounded-full object-cover" />
         </Button>
       </div>
     </header>
