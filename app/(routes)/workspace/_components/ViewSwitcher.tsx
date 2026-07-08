@@ -1,46 +1,55 @@
 "use client";
 
 type Props = {
-  view: "document" | "both" | "canvas";
-  setView: (view: "document" | "both" | "canvas") => void;
+  showDocument: boolean;
+  setShowDocument: React.Dispatch<React.SetStateAction<boolean>>;
+
+  showCompiler: boolean;
+  setShowCompiler: React.Dispatch<React.SetStateAction<boolean>>;
+
+  showCanvas: boolean;
+  setShowCanvas: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-export default function ViewSwitcher({ view, setView }: Props) {
+export default function ViewSwitcher({
+  showDocument,
+  setShowDocument,
+  showCompiler,
+  setShowCompiler,
+  showCanvas,
+  setShowCanvas,
+}: Props) {
   return (
     <div className="flex justify-center py-3 border-b bg-white">
-      <div className="flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-        <button
-          onClick={() => setView("document")}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition ${
-            view === "document"
-              ? "bg-white shadow text-black"
-              : "text-gray-500 hover:text-black"
-          }`}
-        >
-          Document
-        </button>
+      <div className="flex items-center gap-6 rounded-full bg-gray-100 px-6 py-2">
 
-        <button
-          onClick={() => setView("both")}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition ${
-            view === "both"
-              ? "bg-gray-100 text-black"
-              : "text-gray-500 hover:text-black"
-          }`}
-        >
-          Both
-        </button>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showDocument}
+            onChange={() => setShowDocument(!showDocument)}
+          />
+          <span>Document</span>
+        </label>
 
-        <button
-          onClick={() => setView("canvas")}
-          className={`px-6 py-2 rounded-lg text-sm font-medium transition ${
-            view === "canvas"
-              ? "bg-white shadow text-black"
-              : "text-gray-500 hover:text-black"
-          }`}
-        >
-          Canvas
-        </button>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showCompiler}
+            onChange={() => setShowCompiler(!showCompiler)}
+          />
+          <span>Compiler</span>
+        </label>
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showCanvas}
+            onChange={() => setShowCanvas(!showCanvas)}
+          />
+          <span>Canvas</span>
+        </label>
+
       </div>
     </div>
   );
