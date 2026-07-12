@@ -10,7 +10,7 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push("/workspace");
-    }, 5000); // 3 seconds
+    }, 3000); // 3 seconds
 
     return () => clearTimeout(timer);
   }, [router]);
