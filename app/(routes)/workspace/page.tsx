@@ -2,10 +2,11 @@
 
 export const dynamic = "force-dynamic";
 
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./_components/WorkspaceHeader";
 import ViewSwitcher from "./_components/ViewSwitcher";
+import { RoomProvider } from "@liveblocks/react";
 
 const Compiler = nextDynamic(
   () => import("./_components/Compiler"),
@@ -27,123 +28,32 @@ function Workspace() {
   const [showDocument, setShowDocument] = useState(true);
 const [showCompiler, setShowCompiler] = useState(false);
 const [showCanvas, setShowCanvas] = useState(true);
+const [isLive, setIsLive] = useState(false);
   
-  const canvasRef = useRef<any>(null);
-
-  const [triggerSave, setTriggerSave] = useState(false);
   const [fileName, setFileName] = useState("Untitled");
 
-  const downloadPDF = async () => {
-    const html2pdf = (await import("html2pdf.js")).default;
-    const editor = document.getElementById("editor-container");
-
-    if (!editor) return;
-
-    // Export Excalidraw image
-    const canvasImage = await canvasRef.current?.exportCanvas();
-console.log(canvasRef.current);
-console.log(canvasImage);
-    // Temporary container for PDF
-    const container = document.createElement("div");
-    container.style.padding = "30px";
-    container.style.background = "#ffffffff";
-    container.style.width = "800px";
-
-    // Add editor content
-    container.appendChild(editor.cloneNode(true));
-
-    // Add Excalidraw drawing
-    if (canvasImage) {
-      const title = document.createElement("h2");
-      title.style.marginTop = "40px";
-      title.style.marginBottom = "15px";
-      title.style.fontSize = "24px";
-
-      const wrapper = document.createElement("div");
-
-wrapper.style.width = "80%";
-wrapper.style.height = "auto";
-wrapper.style.display = "flex";
-wrapper.style.justifyContent = "center";
-wrapper.style.alignItems = "center";
-wrapper.style.overflow = "hidden";
-wrapper.style.border = "1px solid #ddd";
-wrapper.style.borderRadius = "8px";
-wrapper.style.padding = "10px";
-
-const image = document.createElement("img");
-image.src = canvasImage;
-image.style.maxWidth = "100%";
-image.style.maxHeight = "100%";
-image.style.width = "auto";
-image.style.height = "auto";
-image.style.objectFit = "contain";
-
-wrapper.appendChild(image);
-
-container.appendChild(title);
-container.appendChild(wrapper);
-    }
-
-    await html2pdf()
-      .from(container)
-      .set({
-        filename: `${fileName}.pdf`,
-        margin: 10,
-        image: {
-          type: "jpeg",
-          quality: 1,
-        },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-        },
-        jsPDF: {
-          unit: "mm",
-          format: "a4",
-          orientation: "portrait",
-        },
-      })
-      .save();
-  };
 const visiblePanels = [
   showDocument,
   showCompiler,
   showCanvas,
 ].filter(Boolean).length;
-  return (
-    <div className="h-screen overflow-hidden">
-      <WorkspaceHeader
-        fileName={fileName}
-        setFileName={setFileName}
-        onSave={downloadPDF}
-      />
-
-      <ViewSwitcher
-  showDocument={showDocument}
-  setShowDocument={setShowDocument}
-  showCompiler={showCompiler}
-  setShowCompiler={setShowCompiler}
-  showCanvas={showCanvas}
-  setShowCanvas={setShowCanvas}
-/>
-
-    <div
-  className={`h-[calc(100vh-7rem)] grid ${
-    visiblePanels === 1
-      ? "grid-cols-1"
-      : visiblePanels === 2
-      ? "grid-cols-2"
-      : "grid-cols-3"
-  }`}
->
+const workspaceContent = (
+  <div
+    className={`h-[calc(100vh-7rem)] grid ${
+      visiblePanels === 1
+        ? "grid-cols-1"
+        : visiblePanels === 2
+        ? "grid-cols-2"
+        : "grid-cols-3"
+    }`}
+  >
   {/* Document */}
  {showDocument && (
   <div
     id="editor-container"
     className="overflow-auto border-r"
   >
-    <Editor onSaveTrigger={triggerSave}/>
+    <Editor />
   </div>
 )}
   {/* Compiler */}
@@ -155,15 +65,40 @@ const visiblePanels = [
   {/* Canvas */}
   {showCanvas && (
   <div className="overflow-hidden">
-    <Canvas
-      ref={canvasRef}
-      onSaveTrigger={triggerSave}
-    />
+    <Canvas/>
   </div>
 )}
 </div>
+    );
+return (
+  <RoomProvider
+    id="diagramly-room"
+    initialPresence={{}}
+  >
+    <div className="h-screen overflow-hidden">
+<WorkspaceHeader
+  fileName={fileName}
+  setFileName={setFileName}
+  onSave={() => {
+    console.log("Save feature coming soon");
+  }}
+  isLive={isLive}
+  setIsLive={setIsLive}
+/>
+<ViewSwitcher
+  showDocument={showDocument}
+  setShowDocument={setShowDocument}
+  showCompiler={showCompiler}
+  setShowCompiler={setShowCompiler}
+  showCanvas={showCanvas}
+  setShowCanvas={setShowCanvas}
+/>
+
+{workspaceContent}
+    
     </div>
-  );
+  </RoomProvider>
+);
 }
 
 export default Workspace;
