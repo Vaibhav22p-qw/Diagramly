@@ -81,29 +81,36 @@ function WorkspaceHeader({
       </div>
 
       <div className="flex items-center gap-4 shrink-0">
-        <OnlineUsers />
+        {isLive && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <OnlineUsers />
+          </div>
+        )}
 
         <button
           onClick={handleLiveToggle}
-          className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-1 py-1 pr-3 shadow-sm transition-colors hover:border-gray-300"
+          className={`group flex items-center gap-2.5 rounded-full border py-1.5 pl-2 pr-4 transition-all duration-300 ${
+            isLive
+              ? "border-red-200 bg-red-50 hover:bg-red-100"
+              : "border-slate-200 bg-white hover:bg-slate-50"
+          }`}
         >
-          <span
-            className={`relative flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${
-              isLive ? "bg-red-500" : "bg-gray-200"
-            }`}
-          >
+          <div className="relative flex items-center justify-center">
+            {isLive && (
+              <span className="absolute h-3.5 w-3.5 animate-ping rounded-full bg-red-400 opacity-75" />
+            )}
             <span
-              className={`absolute left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${
-                isLive ? "translate-x-5" : "translate-x-0"
+              className={`relative h-2.5 w-2.5 rounded-full transition-colors duration-300 ${
+                isLive ? "bg-red-500" : "bg-slate-300 group-hover:bg-slate-400"
               }`}
             />
-          </span>
+          </div>
           <span
-            className={`text-xs font-semibold uppercase tracking-wide transition-colors ${
-              isLive ? "text-red-600" : "text-gray-400"
+            className={`text-xs font-bold uppercase tracking-wider transition-colors ${
+              isLive ? "text-red-600" : "text-slate-500"
             }`}
           >
-            {isLive ? "Live" : "Off"}
+            {isLive ? "Live" : "Offline"}
           </span>
         </button>
 
