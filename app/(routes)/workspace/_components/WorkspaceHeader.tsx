@@ -36,7 +36,7 @@ function WorkspaceHeader({
       <div className="flex items-center gap-4 min-w-0">
         <Link href="/" className="shrink-0">
           <Image
-            src="/logo-1.png"
+            src="/diahead.gif"
             alt="Logo"
             width={40}
             height={40}
