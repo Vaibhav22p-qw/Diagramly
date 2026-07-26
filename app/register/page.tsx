@@ -203,15 +203,12 @@ export default function RegisterPage() {
                 {copied ? "Copied!" : "Copy ID"}
               </button>
             </div>
-            <div className="mt-4">
-              <Link
-                href="/app/login"
-                className="flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
-              >
-                Go to Login
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
+            <p className="mt-6 text-center text-sm text-gray-500">
+          have a workspace : {" "}
+          <a href="/login" className="font-medium text-blue-600 hover:text-blue-700">
+            Login
+          </a>
+        </p>
           </div>
         )}
       </div>
