@@ -51,7 +51,7 @@ function WorkspaceHeader({
   return (
     <header className="h-16 border-b border-gray-200 bg-white px-6 flex items-center justify-between gap-6">
       <div className="flex items-center gap-4 min-w-0">
-        <Link href="/" className="shrink-0">
+        <Link href="/dashboard" className="shrink-0">
           <Image
             src="/diahead.gif"
             alt="Logo"
