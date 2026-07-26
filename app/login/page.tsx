@@ -210,7 +210,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Don't have a workspace yet?{" "}
-          <a href="/signup" className="font-medium text-blue-600 hover:text-blue-700">
+          <a href="/app/register" className="font-medium text-blue-600 hover:text-blue-700">
             Create one
           </a>
         </p>
