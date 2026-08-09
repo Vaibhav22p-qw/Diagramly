@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import {
   Copy,
   MoreVertical,
@@ -25,7 +26,7 @@ export interface Workspace {
   title: string;
   owner: string;
   updatedAt: string;
-  favorite: boolean;
+  isFavorite: boolean;
 }
 
 interface WorkspaceCardProps {
@@ -33,9 +34,11 @@ interface WorkspaceCardProps {
 }
 
 function WorkspaceCard({ workspace }: WorkspaceCardProps) {
+  const router = useRouter();
+
   // Navigation Handler
   const handleOpenWorkspace = () => {
-    console.log(`Navigated to /workspace/${workspace.id}`);
+    router.push(`/workspace/${workspace.id}`);
   };
 
   // Action Handlers
@@ -66,11 +69,25 @@ function WorkspaceCard({ workspace }: WorkspaceCardProps) {
 
   // Dynamic Actions List
   const actions = [
-    { label: "Rename", icon: Pencil, onClick: handleRename },
-    { label: "Duplicate", icon: Copy, onClick: handleDuplicate },
-    { label: "Share", icon: Share2, onClick: handleShare },
     {
-      label: workspace.favorite ? "Remove Favorite" : "Add Favorite",
+      label: "Rename",
+      icon: Pencil,
+      onClick: handleRename,
+    },
+    {
+      label: "Duplicate",
+      icon: Copy,
+      onClick: handleDuplicate,
+    },
+    {
+      label: "Share",
+      icon: Share2,
+      onClick: handleShare,
+    },
+    {
+      label: workspace.isFavorite
+        ? "Remove Favorite"
+        : "Add Favorite",
       icon: Star,
       onClick: handleFavorite,
     },
@@ -88,74 +105,79 @@ function WorkspaceCard({ workspace }: WorkspaceCardProps) {
           handleOpenWorkspace();
         }
       }}
-      className="group relative flex flex-col justify-between p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+      className="group relative flex cursor-pointer flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 transition-all duration-200 hover:border-blue-500 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-500"
     >
-      {/* Top Section: Icon & Context Menu */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="p-2.5 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-lg group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 transition-colors">
+      {/* Top Section */}
+      <div className="mb-4 flex items-start justify-between">
+        <div className="rounded-lg bg-blue-50 p-2.5 text-blue-600 transition-colors group-hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-400 dark:group-hover:bg-blue-900/50">
           <Workflow className="h-6 w-6" />
         </div>
 
         {/* Dropdown Menu */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuTrigger
+            asChild
+            onClick={(e) => e.stopPropagation()}
+          >
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 -mr-2 -mt-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="-mr-2 -mt-2 h-8 w-8 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent align="end" className="w-48">
-            
-            {/* Map through dynamic actions */}
             {actions.map((action, index) => {
               const Icon = action.icon;
+
               return (
                 <DropdownMenuItem
                   key={index}
                   onClick={action.onClick}
-                  className="gap-2 cursor-pointer"
+                  className="cursor-pointer gap-2"
                 >
-                  <Icon className="h-4 w-4 text-slate-500" /> {action.label}
+                  <Icon className="h-4 w-4 text-slate-500" />
+                  {action.label}
                 </DropdownMenuItem>
               );
             })}
 
             <DropdownMenuSeparator />
-            
-            {/* Trash Action (Kept separate for red styling) */}
+
+            {/* Trash */}
             <DropdownMenuItem
               onClick={handleTrash}
-              className="gap-2 cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
+              className="cursor-pointer gap-2 text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-950/50"
             >
-              <Trash2 className="h-4 w-4" /> Move to Trash
+              <Trash2 className="h-4 w-4" />
+              Move to Trash
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      {/* Main Content: Title & Details */}
+      {/* Main Content */}
       <div className="flex flex-col gap-1">
-        <h3 className="font-semibold text-base text-slate-800 dark:text-slate-100 line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+        <h3 className="line-clamp-1 text-base font-semibold text-slate-800 transition-colors group-hover:text-blue-600 dark:text-slate-100 dark:group-hover:text-blue-400">
           {workspace.title}
         </h3>
 
-        <div className="flex flex-col gap-2 mt-1">
+        <div className="mt-1 flex flex-col gap-2">
           <span className="text-xs text-slate-500 dark:text-slate-400">
             Updated {workspace.updatedAt}
           </span>
-          
-          <div className="flex items-center justify-between mt-1 pt-3 border-t border-slate-100 dark:border-slate-800/60">
+
+          <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800/60">
             <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
               <User className="h-3.5 w-3.5 text-slate-400" />
               {workspace.owner}
             </div>
-            
-            {/* Conditional Favorite Badge */}
-            {workspace.favorite && (
-              <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-yellow-600 bg-yellow-50 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded-full">
+
+            {/* Favorite Badge */}
+            {workspace.isFavorite && (
+              <div className="flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
                 <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
                 Favorite
               </div>

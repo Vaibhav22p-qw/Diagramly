@@ -5,6 +5,56 @@ import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Workspace from "@/models/Workspace";
 
+export async function GET(req: NextRequest) {
+  try {
+    await connectDB();
+
+    // Get JWT token
+    const token = req.cookies.get("token")?.value;
+
+    if (!token) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    // Verify token
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET!
+    ) as {
+      id: string;
+    };
+
+    // Get logged-in user's workspaces
+    const workspaces = await Workspace.find({
+      ownerId: decoded.id,
+      isTrashed: false,
+    }).sort({
+      updatedAt: -1,
+    });
+
+    return NextResponse.json({
+      success: true,
+      workspaces,
+    });
+  } catch (error) {
+    console.error("Failed to fetch workspaces:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to fetch workspaces",
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     await connectDB();

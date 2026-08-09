@@ -82,8 +82,14 @@ function SideNavBottomSection() {
 
       console.log("Workspace created:", data.workspace);
 
-      setWorkspaceName("");
-      setOpen(false);
+window.dispatchEvent(
+  new CustomEvent("workspace-created", {
+    detail: data.workspace,
+  })
+);
+
+setWorkspaceName("");
+setOpen(false);
     } catch (error) {
       console.error(error);
       alert("Something went wrong.");

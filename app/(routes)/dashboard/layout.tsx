@@ -1,8 +1,25 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import {
+  FileText,
+  HelpCircle,
+  Home,
+  Keyboard,
+  LayoutGrid,
+  Menu,
+  MessageSquare,
+  Settings,
+  Star,
+  Trash2,
+  Users2,
+  X,
+  Plus,
+} from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import SideNav from "./_components/SideNav";
+import { Button } from "@/components/ui/button";
 
 function DashboardLayout({
   children,
@@ -10,7 +27,10 @@ function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     let cancelled = false;
@@ -28,13 +48,19 @@ function DashboardLayout({
         setCheckingAuth(false);
       })
       .catch(() => {
-        if (!cancelled) router.push("/login");
+        if (!cancelled) {
+          router.push("/login");
+        }
       });
 
     return () => {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   if (checkingAuth) {
     return (
@@ -44,15 +70,82 @@ function DashboardLayout({
     );
   }
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="fixed h-screen w-72 border-r border-gray-100 bg-white">
-        <SideNav />
-      </div>
+  const menuItems = [
+    {
+      name: "Home",
+      icon: Home,
+      path: "/dashboard",
+    },
+    {
+      name: "My Workspaces",
+      icon: LayoutGrid,
+      path: "/dashboard/workspaces",
+    },
+    {
+      name: "Favorites",
+      icon: Star,
+      path: "/dashboard/favorites",
+    },
+    {
+      name: "Shared With Me",
+      icon: Users2,
+      path: "/dashboard/shared",
+    },
+    {
+      name: "Templates",
+      icon: FileText,
+      path: "/dashboard/templates",
+    },
+    {
+      name: "Trash",
+      icon: Trash2,
+      path: "/dashboard/trash",
+    },
+  ];
 
-      <div className="ml-72 flex-1">{children}</div>
-    </div>
-  );
+  const bottomItems = [
+    {
+      name: "Settings",
+      icon: Settings,
+      path: "/settings",
+    },
+    {
+      name: "Help Center",
+      icon: HelpCircle,
+      path: "/help",
+    },
+    {
+      name: "Keyboard Shortcuts",
+      icon: Keyboard,
+      path: "/shortcuts",
+    },
+    {
+      name: "Feedback",
+      icon: MessageSquare,
+      path: "/feedback",
+    },
+  ];
+
+  const navigate = (path: string) => {
+    setMobileMenuOpen(false);
+    router.push(path);
+  };
+
+  return (
+  <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
+
+    {/* Desktop sidebar */}
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 lg:block">
+      <SideNav />
+    </aside>
+
+    {/* Main */}
+    <main className="min-h-screen lg:ml-72">
+      {children}
+    </main>
+
+  </div>
+);
 }
 
 export default DashboardLayout;
