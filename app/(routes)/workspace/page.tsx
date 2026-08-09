@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./_components/WorkspaceHeader";
 import ViewSwitcher from "./_components/ViewSwitcher";
@@ -24,14 +24,47 @@ const Canvas = nextDynamic(
   }
 );
 
-function Workspace() {
+function Workspace({
+  workspaceId,
+}: {
+  workspaceId?: string;
+}) {
   const [showDocument, setShowDocument] = useState(true);
 const [showCompiler, setShowCompiler] = useState(false);
 const [showCanvas, setShowCanvas] = useState(true);
 const [isLive, setIsLive] = useState(false);
   
-  const [fileName, setFileName] = useState("Untitled");
+const [fileName, setFileName] = useState("Untitled");
+const [workspaceLoading, setWorkspaceLoading] = useState(true);
+useEffect(() => {
+  if (!workspaceId) {
+    setWorkspaceLoading(false);
+    return;
+  }
 
+  const fetchWorkspace = async () => {
+    try {
+      const response = await fetch(`/api/workspaces/${workspaceId}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Failed to load workspace");
+      }
+
+      setFileName(data.workspace.title || "Untitled");
+    } catch (error) {
+      console.error("Failed to load workspace:", error);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  };
+
+  fetchWorkspace();
+}, [workspaceId]);
 const visiblePanels = [
   showDocument,
   showCompiler,

@@ -38,7 +38,7 @@ function WorkspaceCard({ workspace }: WorkspaceCardProps) {
 
   // Navigation Handler
   const handleOpenWorkspace = () => {
-    router.push(`/workspace/${workspace.id}`);
+    router.push(`/dashboard/workspaces/${workspace.id}`);
   };
 
   // Action Handlers

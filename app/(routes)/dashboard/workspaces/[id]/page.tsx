@@ -1,17 +1,10 @@
 "use client";
 
-import Workspace from "../page";
+import { useParams } from "next/navigation";
+import Workspace from "@/app/(routes)/workspace/page";
 
-interface WorkspacePageProps {
-  params: {
-    id: string;
-  };
-}
+export default function WorkspaceByIdPage() {
+  const params = useParams();
 
-export default function WorkspaceByIdPage({
-  params,
-}: WorkspacePageProps) {
-  console.log("Opening workspace:", params.id);
-
-  return <Workspace />;
+  return <Workspace workspaceId={params.id as string} />;
 }

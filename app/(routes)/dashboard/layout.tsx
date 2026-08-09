@@ -31,7 +31,7 @@ function DashboardLayout({
 
   const router = useRouter();
   const pathname = usePathname();
-
+const isWorkspacePage = pathname.startsWith("/dashboard/workspaces/");
   useEffect(() => {
     let cancelled = false;
 
@@ -135,14 +135,17 @@ function DashboardLayout({
   <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
 
     {/* Desktop sidebar */}
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 lg:block">
-      <SideNav />
-    </aside>
+    {/* Desktop sidebar */}
+{!isWorkspacePage && (
+  <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 lg:block">
+    <SideNav />
+  </aside>
+)}
 
     {/* Main */}
-    <main className="min-h-screen lg:ml-72">
-      {children}
-    </main>
+<main className={`min-h-screen ${!isWorkspacePage ? "lg:ml-72" : ""}`}>
+  {children}
+</main>
 
   </div>
 );
