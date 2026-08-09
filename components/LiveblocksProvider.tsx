@@ -8,7 +8,10 @@ export default function Provider({
   children: React.ReactNode;
 }) {
   return (
-    <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
+    <LiveblocksProvider
+  authEndpoint="/api/liveblocks-auth"
+  badgeLocation="bottom-left"
+>
       {children}
     </LiveblocksProvider>
   );
