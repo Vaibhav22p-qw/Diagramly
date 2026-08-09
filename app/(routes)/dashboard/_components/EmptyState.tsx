@@ -5,10 +5,9 @@ import { FolderPlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function EmptyState() {
-  const handleCreate = () => {
-    console.log("Create Workspace");
-    // Later: We will trigger the same dialog used in the SideNav
-  };
+const handleCreate = () => {
+  window.dispatchEvent(new Event("open-create-workspace"));
+};
 
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/50">
@@ -26,13 +25,13 @@ function EmptyState() {
       </p>
 
       {/* Action */}
-      <Button
-        onClick={handleCreate}
-        className="bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm"
-      >
-        <Plus className="h-4 w-4" />
-        Create Workspace
-      </Button>
+<Button
+  onClick={handleCreate}
+  className="bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm"
+>
+  <Plus className="h-4 w-4" />
+  Create Workspace
+</Button>
     </div>
   );
 }

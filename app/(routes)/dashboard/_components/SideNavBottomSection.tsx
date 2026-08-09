@@ -20,13 +20,29 @@ import {
   Settings,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 function SideNavBottomSection() {
   const router = useRouter();
   const [workspaceName, setWorkspaceName] = useState("");
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+  const handleOpenCreateWorkspace = () => {
+    setOpen(true);
+  };
 
+  window.addEventListener(
+    "open-create-workspace",
+    handleOpenCreateWorkspace
+  );
+
+  return () => {
+    window.removeEventListener(
+      "open-create-workspace",
+      handleOpenCreateWorkspace
+    );
+  };
+}, []);
   const menuItems = [
     {
       id: 1,
