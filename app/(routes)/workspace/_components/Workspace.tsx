@@ -1,10 +1,8 @@
-// Vercel deployment test
 "use client";
 
 import React, { useEffect, useState } from "react";
 import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./WorkspaceHeader";
-import ViewSwitcher from "./ViewSwitcher";
 import { RoomProvider } from "@liveblocks/react";
 
 const Compiler = nextDynamic(() => import("./Compiler"), {
@@ -75,7 +73,7 @@ function Workspace({ workspaceId }: WorkspaceProps) {
 
   const workspaceContent = (
     <div
-      className={`h-[calc(100vh-7rem)] grid ${
+      className={`h-[calc(100vh-4rem)] grid ${
         visiblePanels === 1
           ? "grid-cols-1"
           : visiblePanels === 2
@@ -115,6 +113,7 @@ function Workspace({ workspaceId }: WorkspaceProps) {
       initialPresence={{}}
     >
       <div className="h-screen overflow-hidden">
+
         <WorkspaceHeader
           fileName={fileName}
           setFileName={setFileName}
@@ -123,18 +122,19 @@ function Workspace({ workspaceId }: WorkspaceProps) {
           }}
           isLive={isLive}
           setIsLive={setIsLive}
-        />
-
-        <ViewSwitcher
+          
           showDocument={showDocument}
           setShowDocument={setShowDocument}
+
           showCompiler={showCompiler}
           setShowCompiler={setShowCompiler}
+
           showCanvas={showCanvas}
           setShowCanvas={setShowCanvas}
         />
 
         {workspaceContent}
+
       </div>
     </RoomProvider>
   );

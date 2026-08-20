@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Search,
   MoreVertical,
   Share2,
   Download,
@@ -13,6 +12,7 @@ import Image from "next/image";
 import React, { useState } from "react";
 import OnlineUsers from "./OnlineUsers";
 import ProfileMenu from "@/components/menu";
+import ViewSwitcher from "./ViewSwitcher";
 
 function WorkspaceHeader({
   onSave,
@@ -20,12 +20,27 @@ function WorkspaceHeader({
   setFileName,
   isLive,
   setIsLive,
+  showDocument,
+  setShowDocument,
+  showCompiler,
+  setShowCompiler,
+  showCanvas,
+  setShowCanvas,
 }: {
   onSave: () => void;
   fileName: string;
   setFileName: React.Dispatch<React.SetStateAction<string>>;
   isLive: boolean;
   setIsLive: React.Dispatch<React.SetStateAction<boolean>>;
+
+  showDocument: boolean;
+  setShowDocument: React.Dispatch<React.SetStateAction<boolean>>;
+
+  showCompiler: boolean;
+  setShowCompiler: React.Dispatch<React.SetStateAction<boolean>>;
+
+  showCanvas: boolean;
+  setShowCanvas: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
@@ -108,17 +123,16 @@ function WorkspaceHeader({
         )}
       </div>
 
-      {/* SEARCH */}
+      {/* CENTER — VIEW SWITCHER */}
       <div className="flex flex-1 justify-center px-1 sm:px-4">
-        <div className="relative w-full max-w-[100px] sm:max-w-md">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 sm:left-3 sm:h-4 sm:w-4" />
-
-          <input
-            type="text"
-            placeholder="Search..."
-            className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 pl-8 pr-2 text-xs text-gray-900 outline-none transition-all focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100 sm:h-10 sm:pl-10 sm:pr-4 sm:text-sm"
-          />
-        </div>
+        <ViewSwitcher
+          showDocument={showDocument}
+          setShowDocument={setShowDocument}
+          showCompiler={showCompiler}
+          setShowCompiler={setShowCompiler}
+          showCanvas={showCanvas}
+          setShowCanvas={setShowCanvas}
+        />
       </div>
 
       {/* RIGHT */}
@@ -167,6 +181,7 @@ function WorkspaceHeader({
         {/* DESKTOP SHARE + SAVE */}
         <div className="hidden items-center gap-2 sm:flex">
 
+          {/* SHARE */}
           <Button
             variant="outline"
             className="h-10 rounded-lg border-gray-200 bg-white px-4 text-gray-700 shadow-sm hover:bg-gray-50"
@@ -180,6 +195,7 @@ function WorkspaceHeader({
             Share
           </Button>
 
+          {/* SAVE */}
           <Button
             onClick={handleDownload}
             className="h-10 rounded-lg bg-blue-600 px-5 text-white shadow-sm hover:bg-blue-700"
@@ -235,7 +251,7 @@ function WorkspaceHeader({
 
         </div>
 
-        {/* EXISTING PROFILE — UNCHANGED */}
+        {/* PROFILE */}
         <ProfileMenu />
 
       </div>
