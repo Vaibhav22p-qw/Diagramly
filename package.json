@@ -42,15 +42,18 @@
     "react": "^18",
     "react-dom": "^18",
     "react-resizable-panels": "^4.12.1",
+    "sockjs-client": "^1.6.1",
     "sonner": "^1.4.0",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
-    "uuid": "^14.0.1"
+    "uuid": "^14.0.1",
+    "webstomp-client": "^1.2.6"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/sockjs-client": "^1.5.4",
     "autoprefixer": "^10.0.1",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
