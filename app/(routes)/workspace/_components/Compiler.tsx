@@ -1,7 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+} from "react";
+
+import {
+  startJDoodleSession,
+} from "@/lib/compiler/jdoodle-client";
+
 import Editor from "@monaco-editor/react";
+import Terminal, {
+  TerminalEntry,
+} from "@/components/compiler/Terminal";
 
 const LANGUAGES: Record<
   string,
@@ -30,6 +42,11 @@ const LANGUAGES: Record<
 };
 
 export default function Compiler() {
+  const jdoodleSessionRef = useRef<{
+    sendInput: (input: string) => void;
+    disconnect: () => void;
+  } | null>(null);
+  
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const isDark = theme === "dark";
 
@@ -41,7 +58,51 @@ export default function Compiler() {
   const [aiResponse, setAiResponse] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  const [compilerError, setCompilerError] = useState("");
+  const [compileStatus, setCompileStatus] = useState<
+    "idle" | "success" | "error"
+  >("idle");
 
+  const [terminalEntries, setTerminalEntries] =
+    useState<TerminalEntry[]>([]);
+
+  const [exitCode, setExitCode] = useState<number | null>(
+    null
+  );
+
+  const [terminalHeight, setTerminalHeight] = useState(260);
+
+  const [isDraggingTerminal, setIsDraggingTerminal] =
+    useState(false);
+
+  const clearTerminal = () => {
+    setTerminalEntries([]);
+    setOutput("");
+    setCompilerError("");
+    setExitCode(null);
+    setCompileStatus("idle");
+  };
+  useEffect(() => {
+  const handleTerminalClear = () => {
+    clearTerminal();
+  };
+
+  window.addEventListener(
+    "diagramly-terminal-clear",
+    handleTerminalClear
+  );
+
+  return () => {
+    window.removeEventListener(
+      "diagramly-terminal-clear",
+      handleTerminalClear
+    );
+  };
+}, []);
   const handleLanguageChange = (key: string) => {
     setLanguageKey(key);
     setCode(LANGUAGES[key].defaultCode);
@@ -58,31 +119,399 @@ export default function Compiler() {
     setCode(LANGUAGES[languageKey].defaultCode);
   };
 
+const handleRunCode = async () => {
+  if (!code.trim() || isRunning) return;
+
+  setIsRunning(true);
+  setOutput("");
+  setCompilerError("");
+  setExitCode(null);
+  setCompileStatus("idle");
+
+  setTerminalEntries(
+    input.trim()
+      ? [
+          {
+            type: "system",
+            text: `> ${input}`,
+          },
+        ]
+      : []
+  );
+
+  try {
+    const response = await fetch("/api/compiler", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        language: languageKey,
+        code,
+        stdin: input,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.output) {
+      setOutput(data.output);
+
+      setTerminalEntries((prev) => [
+        ...prev,
+        {
+          type: "output",
+          text: data.output,
+        },
+      ]);
+    }
+
+    if (data.error) {
+      setCompilerError(data.error);
+
+      setTerminalEntries((prev) => [
+        ...prev,
+        {
+          type: "error",
+          text: data.error,
+        },
+      ]);
+    }
+
+    if (data.compiled && data.executed) {
+      setCompileStatus("success");
+      setExitCode(0);
+    } else {
+      setCompileStatus("error");
+      setExitCode(1);
+    }
+  } catch (error) {
+    console.error("Compiler error:", error);
+
+    setCompilerError(
+      "Unable to connect to the compiler service."
+    );
+
+    setCompileStatus("error");
+    setExitCode(1);
+
+    setTerminalEntries((prev) => [
+      ...prev,
+      {
+        type: "error",
+        text: "Unable to connect to the compiler service.",
+      },
+    ]);
+  } finally {
+    setIsRunning(false);
+  }
+};
+const handleInteractiveRun = async () => {
+  if (!code.trim() || isRunning) return;
+
+  setIsRunning(true);
+  setOutput("");
+  setCompilerError("");
+  setExitCode(null);
+  setCompileStatus("idle");
+  setTerminalEntries([]);
+
+  try {
+    const response = await fetch(
+      "/api/compiler/interactive",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "start",
+          language: languageKey,
+          code,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+          data.error ||
+          "Failed to start program."
+      );
+    }
+
+    jdoodleSessionRef.current = {
+      sendInput: async (input: string) => {
+        await fetch(
+          "/api/compiler/interactive",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "input",
+              sessionId: data.sessionId,
+              input: input.replace(/\n$/, ""),
+            }),
+          }
+        );
+      },
+
+      disconnect: async () => {
+        await fetch(
+          "/api/compiler/interactive",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "stop",
+              sessionId: data.sessionId,
+            }),
+          }
+        );
+      },
+    };
+
+    setTerminalEntries([
+      {
+        type: "system",
+        text: "Program started...",
+      },
+    ]);
+
+    // Poll for program output
+    const pollOutput = async () => {
+      try {
+        const result = await fetch(
+          "/api/compiler/interactive",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "poll",
+              sessionId: data.sessionId,
+            }),
+          }
+        );
+
+        const pollData =
+          await result.json();
+
+        if (pollData.output) {
+          setOutput(
+            (prev) =>
+              prev + pollData.output
+          );
+
+          setTerminalEntries((prev) => [
+            ...prev,
+            {
+              type: "output",
+              text: pollData.output,
+            },
+          ]);
+        }
+
+        if (pollData.error) {
+          setCompilerError(
+            pollData.error
+          );
+
+          setTerminalEntries((prev) => [
+            ...prev,
+            {
+              type: "error",
+              text: pollData.error,
+            },
+          ]);
+        }
+
+        if (pollData.finished) {
+          setExitCode(
+            pollData.exitCode
+          );
+
+          setIsRunning(false);
+
+          setCompileStatus(
+            pollData.exitCode === 0
+              ? "success"
+              : "error"
+          );
+
+          jdoodleSessionRef.current =
+            null;
+
+          return;
+        }
+
+        setTimeout(
+          pollOutput,
+          300
+        );
+      } catch (error: any) {
+        setCompilerError(
+          error.message ||
+            "Failed to read program output."
+        );
+
+        setIsRunning(false);
+      }
+    };
+
+    pollOutput();
+  } catch (error: any) {
+    setCompilerError(
+      error.message ||
+        "Unable to start program."
+    );
+
+    setTerminalEntries([
+      {
+        type: "error",
+        text:
+          error.message ||
+          "Unable to start program.",
+      },
+    ]);
+
+    setExitCode(1);
+    setCompileStatus("error");
+    setIsRunning(false);
+  }
+};
+const sendRuntimeInput = () => {
+  if (
+    !jdoodleSessionRef.current ||
+    !isRunning ||
+    !input.trim()
+  ) {
+    return;
+  }
+
+  jdoodleSessionRef.current.sendInput(
+    input + "\n"
+  );
+
+  setTerminalEntries((prev) => [
+    ...prev,
+    {
+      type: "system",
+      text: `> ${input}`,
+    },
+  ]);
+
+  setInput("");
+};
+  useEffect(() => {
+    if (!isDraggingTerminal) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const newHeight =
+        window.innerHeight - event.clientY;
+
+      const minHeight = 140;
+      const maxHeight = window.innerHeight - 180;
+
+      setTerminalHeight(
+        Math.min(
+          Math.max(newHeight, minHeight),
+          maxHeight
+        )
+      );
+    };
+
+    const handlePointerUp = () => {
+      setIsDraggingTerminal(false);
+    };
+
+    window.addEventListener(
+      "pointermove",
+      handlePointerMove
+    );
+
+    window.addEventListener(
+      "pointerup",
+      handlePointerUp
+    );
+
+    return () => {
+      window.removeEventListener(
+        "pointermove",
+        handlePointerMove
+      );
+
+      window.removeEventListener(
+        "pointerup",
+        handlePointerUp
+      );
+    };
+  }, [isDraggingTerminal]);
+
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
 
     setIsGenerating(true);
     setAiResponse("");
+    setKnowledgeId(null);
 
     try {
-      const response = await fetch("/api/ai/code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          language: LANGUAGES[languageKey].name,
-          code,
-        }),
-      });
+      const response = await fetch(
+        `/api/knowledge?q=${encodeURIComponent(
+          prompt
+        )}&language=${encodeURIComponent(
+          LANGUAGES[languageKey].name
+        )}`
+      );
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "AI request failed");
 
-      setAiResponse(data.code || data.response || "");
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Knowledge retrieval failed"
+        );
+      }
+
+      const bestResult = data.results?.[0];
+
+      if (!bestResult) {
+        setAiResponse(
+          "// Diagramly has not learned this concept yet.\n// Try another request or teach Diagramly by adding a successful solution."
+        );
+        return;
+      }
+
+      setAiResponse(bestResult.code || "");
+      setKnowledgeId(bestResult.id || null);
+
+      // Tell Diagramly this knowledge was retrieved.
+      if (bestResult.id) {
+        await fetch("/api/knowledge", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            knowledgeId: bestResult.id,
+            action: "retrieved",
+          }),
+        });
+      }
     } catch (error) {
-      console.error("Diagramly AI error:", error);
+      console.error(
+        "Diagramly Knowledge Engine error:",
+        error
+      );
+
       setAiResponse(
-        "// Unable to generate code right now. Check backend connection."
+        "// Unable to retrieve learned knowledge right now."
       );
     } finally {
       setIsGenerating(false);
@@ -96,9 +525,32 @@ export default function Compiler() {
     }
   };
 
-  const handleInsertCode = () => {
+  const handleInsertCode = async () => {
     if (!aiResponse.trim()) return;
+
     setCode(aiResponse);
+
+    // Mark the learned solution as accepted.
+    if (knowledgeId) {
+      try {
+        await fetch("/api/knowledge", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            knowledgeId,
+            action: "accepted",
+          }),
+        });
+      } catch (error) {
+        console.error(
+          "Failed to record knowledge acceptance:",
+          error
+        );
+      }
+    }
+
     setShowAI(false);
   };
 
@@ -211,59 +663,120 @@ export default function Compiler() {
             <RefreshIcon className="w-3.5 h-3.5" />
             <span>Reset</span>
           </button>
-
-          {/* AI Toggle Header Button */}
+              {/* Run Code */}
 <button
   type="button"
-  onClick={() => setShowAI(!showAI)}
-  className={`group relative flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 ${
-    showAI
-      ? "border-indigo-400 bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
-      : isDark
-      ? "border-indigo-800/60 bg-indigo-950/50 text-indigo-300 hover:border-indigo-500 hover:bg-indigo-900/70 hover:text-indigo-200 hover:shadow-lg hover:shadow-indigo-500/20"
-      : "border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:shadow-lg hover:shadow-indigo-200/50"
-  }`}
-  title="Diagramly AI"
-  aria-label="Diagramly AI"
+  onClick={handleInteractiveRun}
+  disabled={isRunning || !code.trim()}
+  className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border transition-all ${
+    isRunning
+      ? isDark
+        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+        : "bg-amber-50 border-amber-200 text-amber-600"
+      : "bg-emerald-600 hover:bg-emerald-500 border-emerald-500 text-white"
+  } disabled:opacity-50 disabled:cursor-not-allowed`}
+  title="Run Code"
 >
-  <SparklesIcon
-    className={`h-5 w-5 transition-transform duration-200 ${
-      showAI
-        ? "scale-110"
-        : "group-hover:scale-110"
-    }`}
-  />
-
-  {/* Active indicator */}
-  {showAI && (
-    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+  {isRunning ? (
+    <>
+      <SpinnerIcon className="w-3.5 h-3.5 animate-spin" />
+      <span>Running...</span>
+    </>
+  ) : (
+    <>
+      <span>Run</span>
+    </>
   )}
 </button>
+          {/* AI Toggle Header Button */}
+          <button
+            type="button"
+            onClick={() => setShowAI(!showAI)}
+            className={`group relative flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 ${
+              showAI
+                ? "border-indigo-400 bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
+                : isDark
+                ? "border-indigo-800/60 bg-indigo-950/50 text-indigo-300 hover:border-indigo-500 hover:bg-indigo-900/70 hover:text-indigo-200 hover:shadow-lg hover:shadow-indigo-500/20"
+                : "border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:shadow-lg hover:shadow-indigo-200/50"
+            }`}
+            title="Diagramly AI"
+            aria-label="Diagramly AI"
+          >
+            <SparklesIcon
+              className={`h-5 w-5 transition-transform duration-200 ${
+                showAI
+                  ? "scale-110"
+                  : "group-hover:scale-110"
+              }`}
+            />
+
+            {/* Active indicator */}
+            {showAI && (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+            )}
+          </button>
         </div>
       </header>
 
-      {/* Editor Main Canvas */}
-      <main className={`flex-1 w-full relative ${isDark ? "bg-slate-950" : "bg-white"}`}>
-        <Editor
-          height="100%"
-          language={LANGUAGES[languageKey].monacoLang}
-          value={code}
-          onChange={(val) => setCode(val || "")}
-          theme={isDark ? "vs-dark" : "light"}
-          options={{
-            fontSize: 13.5,
-            fontFamily: "Fira Code, JetBrains Mono, monospace",
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            padding: { top: 16, bottom: 16 },
-            smoothScrolling: true,
-            cursorBlinking: "smooth",
-            lineNumbersMinChars: 3,
-            renderLineHighlight: "all",
-          }}
+      {/* Editor + Terminal */}
+      <div className="flex-1 min-h-0 flex flex-col">
+
+        {/* Monaco Editor */}
+        <main
+          className={`flex-1 min-h-0 w-full relative ${
+            isDark ? "bg-slate-950" : "bg-white"
+          }`}
+        >
+          <Editor
+            height="100%"
+            language={LANGUAGES[languageKey].monacoLang}
+            value={code}
+            onChange={(val) => setCode(val || "")}
+            theme={isDark ? "vs-dark" : "light"}
+            options={{
+              fontSize: 13.5,
+              fontFamily: "Fira Code, JetBrains Mono, monospace",
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              padding: { top: 16, bottom: 16 },
+              smoothScrolling: true,
+              cursorBlinking: "smooth",
+              lineNumbersMinChars: 3,
+              renderLineHighlight: "all",
+            }}
+          />
+        </main>
+
+        {/* Resize Handle */}
+        <div
+          onPointerDown={() => setIsDraggingTerminal(true)}
+          className={`h-1.5 shrink-0 cursor-row-resize border-y transition-colors ${
+            isDraggingTerminal
+              ? "bg-indigo-500"
+              : isDark
+              ? "bg-slate-800 hover:bg-indigo-500"
+              : "bg-slate-200 hover:bg-indigo-400"
+          }`}
+          title="Drag to resize terminal"
         />
-      </main>
+
+        {/* Terminal */}
+        <div
+          style={{ height: terminalHeight }}
+          className="shrink-0 min-h-0"
+        >
+          <Terminal
+  entries={terminalEntries}
+  input={input}
+  onInputChange={setInput}
+  onSubmitInput={sendRuntimeInput}
+  exitCode={exitCode}
+  isRunning={isRunning}
+/>
+        </div>
+
+      </div>
 
       {/* AI Assistant Overlay Panel */}
       {showAI && (
