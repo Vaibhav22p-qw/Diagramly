@@ -30,7 +30,26 @@ const LANGUAGE_CONFIG: Record<
     versionIndex: "4",
   },
 };
-function executeJDoodle(payload: object): Promise<any> {
+
+const JDOODLE_TIMEOUT_MARKER = "JDoodle - Timeout";
+
+function cleanJDoodleText(text: string): string {
+  const markerIndex = text.indexOf(
+    JDOODLE_TIMEOUT_MARKER
+  );
+
+  if (markerIndex !== -1) {
+    return text
+      .substring(0, markerIndex)
+      .trim();
+  }
+
+  return text.trim();
+}
+
+function executeJDoodle(
+  payload: object
+): Promise<any> {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(payload);
 
@@ -43,7 +62,8 @@ function executeJDoodle(payload: object): Promise<any> {
 
         headers: {
           "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(data),
+          "Content-Length":
+            Buffer.byteLength(data),
         },
 
         timeout: 15000,
@@ -104,16 +124,22 @@ function executeJDoodle(payload: object): Promise<any> {
     request.end();
   });
 }
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
     const language = body.language as Language;
     const code = body.code;
+
     const stdin =
       typeof body.stdin === "string"
         ? body.stdin
         : "";
+
+    // ---------------------------------------------
+    // Validation
+    // ---------------------------------------------
 
     if (!language || !code) {
       return NextResponse.json(
@@ -137,6 +163,10 @@ export async function POST(request: Request) {
       );
     }
 
+    // ---------------------------------------------
+    // JDoodle credentials
+    // ---------------------------------------------
+
     const clientId =
       process.env.JDOODLE_CLIENT_ID;
 
@@ -154,23 +184,36 @@ export async function POST(request: Request) {
       );
     }
 
+    // ---------------------------------------------
+    // Language configuration
+    // ---------------------------------------------
+
     const config =
       LANGUAGE_CONFIG[language];
 
+    // ---------------------------------------------
+    // Execute code using JDoodle
+    // ---------------------------------------------
+
     const data = await executeJDoodle({
-  clientId,
-  clientSecret,
+      clientId,
+      clientSecret,
 
-  script: code,
+      script: code,
 
-  stdin,
+      stdin,
 
-  language: config.language,
+      language: config.language,
 
-  versionIndex: config.versionIndex,
+      versionIndex: config.versionIndex,
 
-  compileOnly: false,
-});
+      compileOnly: false,
+    });
+
+    // ---------------------------------------------
+    // Compilation / execution status
+    // ---------------------------------------------
+
     const compiled =
       data.isCompiled !== false &&
       data.compilationStatus !== 1;
@@ -178,65 +221,77 @@ export async function POST(request: Request) {
     const executed =
       data.isExecutionSuccess === true;
 
-// ---------------------------------------------
-// Clean JDoodle response
-// ---------------------------------------------
+    // ---------------------------------------------
+    // Clean JDoodle response
+    // ---------------------------------------------
 
-const rawOutput = data.output || "";
-const rawError = data.error || "";
+    const rawOutput =
+      data.output || "";
 
-const JDoodle_TIMEOUT_MARKER = "JDoodle - Timeout";
+    const rawError =
+      data.error || "";
 
-function cleanJDoodleText(text: string): string {
-  const markerIndex = text.indexOf(
-    JDoodle_TIMEOUT_MARKER
-  );
+    const output =
+      cleanJDoodleText(rawOutput);
 
-  if (markerIndex !== -1) {
-    return text
-      .substring(0, markerIndex)
-      .trim();
-  }
+    let error =
+      cleanJDoodleText(rawError);
 
-  return text.trim();
-}
+    // ---------------------------------------------
+    // Timeout detection
+    // ---------------------------------------------
 
-const output = cleanJDoodleText(rawOutput);
-let error = cleanJDoodleText(rawError);
+    const hasJDoodleTimeout =
+      rawOutput.includes(
+        JDOODLE_TIMEOUT_MARKER
+      ) ||
+      rawError.includes(
+        JDOODLE_TIMEOUT_MARKER
+      );
 
-// ---------------------------------------------
-// Timeout detection
-// ---------------------------------------------
+    if (hasJDoodleTimeout) {
+      /*
+       * If there was already a real
+       * compiler/runtime error before the
+       * JDoodle timeout message, keep it.
+       */
+      if (!output && !error) {
+        error =
+          "Program timed out. Check for an infinite loop or missing input.";
+      }
+    }
 
-const hasJDoodleTimeout =
-  rawOutput.includes(JDoodle_TIMEOUT_MARKER) ||
-  rawError.includes(JDoodle_TIMEOUT_MARKER);
+    // ---------------------------------------------
+    // Response
+    // ---------------------------------------------
 
-if (hasJDoodleTimeout) {
-  // If there was already a real compiler/runtime
-  // error before the JDoodle message, keep it.
-  if (!output && !error) {
-    error =
-      "Program timed out. Check for an infinite loop or missing input.";
-  }
-}
-return NextResponse.json({
-  success: compiled && executed,
-  compiled,
-  executed,
-  output,
-  error,
-  exitCode:
-    compiled && executed
-      ? 0
-      : 1,
-  memory:
-    data.memory || null,
-  cpuTime:
-    data.cpuTime || null,
-  compilationStatus:
-    data.compilationStatus ?? null,
-});
+    return NextResponse.json({
+      success:
+        compiled && executed,
+
+      compiled,
+
+      executed,
+
+      output,
+
+      error,
+
+      exitCode:
+        compiled && executed
+          ? 0
+          : 1,
+
+      memory:
+        data.memory || null,
+
+      cpuTime:
+        data.cpuTime || null,
+
+      compilationStatus:
+        data.compilationStatus ??
+        null,
+    });
   } catch (error: any) {
     console.error(
       "Diagramly JDoodle compiler error:",
@@ -251,14 +306,19 @@ return NextResponse.json({
     return NextResponse.json(
       {
         success: false,
+
         compiled: false,
+
         executed: false,
+
         output: "",
+
         error:
           error?.cause?.code ||
           error?.cause?.message ||
           error?.message ||
           "Compiler service failed.",
+
         exitCode: null,
       },
       { status: 500 }
