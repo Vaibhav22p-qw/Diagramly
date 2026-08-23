@@ -30,11 +30,17 @@ const LANGUAGE_CONFIG: Record<
     versionIndex: "4",
   },
 };
-function executeJDoodle(payload: object): Promise<any> {
+
+const JDOODLE_TIMEOUT_MARKER =
+  "JDoodle - Timeout";
+
+function executeJDoodle(
+  payload: object
+): Promise<any> {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(payload);
 
-    const request = https.request(
+    const req = https.request(
       {
         hostname: "api.jdoodle.com",
         path: "/v1/execute",
@@ -42,34 +48,39 @@ function executeJDoodle(payload: object): Promise<any> {
         family: 4,
 
         headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(data),
+          "Content-Type":
+            "application/json",
+
+          "Content-Length":
+            Buffer.byteLength(data),
         },
 
         timeout: 15000,
       },
-      (response) => {
+
+      (res) => {
         let body = "";
 
-        response.setEncoding("utf8");
+        res.setEncoding("utf8");
 
-        response.on("data", (chunk) => {
+        res.on("data", (chunk) => {
           body += chunk;
         });
 
-        response.on("end", () => {
+        res.on("end", () => {
           try {
-            const parsed = JSON.parse(body);
+            const parsed =
+              JSON.parse(body);
 
             if (
-              response.statusCode &&
-              response.statusCode >= 400
+              res.statusCode &&
+              res.statusCode >= 400
             ) {
               reject(
                 new Error(
                   parsed.error ||
                     parsed.message ||
-                    `JDoodle HTTP ${response.statusCode}`
+                    `JDoodle HTTP ${res.statusCode}`
                 )
               );
 
@@ -88,32 +99,43 @@ function executeJDoodle(payload: object): Promise<any> {
       }
     );
 
-    request.on("timeout", () => {
-      request.destroy(
+    req.on("timeout", () => {
+      req.destroy(
         new Error(
           "JDoodle connection timed out."
         )
       );
     });
 
-    request.on("error", (error) => {
+    req.on("error", (error) => {
       reject(error);
     });
 
-    request.write(data);
-    request.end();
+    req.write(data);
+    req.end();
   });
 }
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
 
-    const language = body.language as Language;
+export async function POST(
+  request: Request
+) {
+  try {
+    const body =
+      await request.json();
+
+    const language =
+      body.language as Language;
+
     const code = body.code;
+
     const stdin =
       typeof body.stdin === "string"
         ? body.stdin
         : "";
+
+    // -----------------------------------------
+    // Validate input
+    // -----------------------------------------
 
     if (!language || !code) {
       return NextResponse.json(
@@ -122,9 +144,15 @@ export async function POST(request: Request) {
           message:
             "Language and code are required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
+
+    // -----------------------------------------
+    // Validate language
+    // -----------------------------------------
 
     if (!LANGUAGE_CONFIG[language]) {
       return NextResponse.json(
@@ -133,9 +161,15 @@ export async function POST(request: Request) {
           message:
             "Unsupported programming language.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
+
+    // -----------------------------------------
+    // JDoodle credentials
+    // -----------------------------------------
 
     const clientId =
       process.env.JDOODLE_CLIENT_ID;
@@ -143,100 +177,166 @@ export async function POST(request: Request) {
     const clientSecret =
       process.env.JDOODLE_CLIENT_SECRET;
 
-    if (!clientId || !clientSecret) {
+    if (
+      !clientId ||
+      !clientSecret
+    ) {
       return NextResponse.json(
         {
           success: false,
           message:
             "JDoodle credentials are not configured.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
+
+    // -----------------------------------------
+    // Get language configuration
+    // -----------------------------------------
 
     const config =
       LANGUAGE_CONFIG[language];
 
-    const data = await executeJDoodle({
-  clientId,
-  clientSecret,
+    // -----------------------------------------
+    // Execute JDoodle
+    // -----------------------------------------
 
-  script: code,
+    const data =
+      await executeJDoodle({
+        clientId,
+        clientSecret,
 
-  stdin,
+        script: code,
 
-  language: config.language,
+        stdin,
 
-  versionIndex: config.versionIndex,
+        language:
+          config.language,
 
-  compileOnly: false,
-});
+        versionIndex:
+          config.versionIndex,
+
+        compileOnly: false,
+      });
+
+    // -----------------------------------------
+    // Compilation status
+    // -----------------------------------------
+
     const compiled =
       data.isCompiled !== false &&
       data.compilationStatus !== 1;
 
+    // -----------------------------------------
+    // Execution status
+    // -----------------------------------------
+
     const executed =
       data.isExecutionSuccess === true;
 
-// ---------------------------------------------
-// Clean JDoodle response
-// ---------------------------------------------
+    // -----------------------------------------
+    // Raw output
+    // -----------------------------------------
 
-const rawOutput = data.output || "";
-const rawError = data.error || "";
+    const rawOutput =
+      typeof data.output === "string"
+        ? data.output
+        : "";
 
-const JDoodle_TIMEOUT_MARKER = "JDoodle - Timeout";
+    const rawError =
+      typeof data.error === "string"
+        ? data.error
+        : "";
 
-function cleanJDoodleText(text: string): string {
-  const markerIndex = text.indexOf(
-    JDoodle_TIMEOUT_MARKER
-  );
+    // -----------------------------------------
+    // Clean output
+    // -----------------------------------------
 
-  if (markerIndex !== -1) {
-    return text
-      .substring(0, markerIndex)
-      .trim();
-  }
+    const outputMarkerIndex =
+      rawOutput.indexOf(
+        JDOODLE_TIMEOUT_MARKER
+      );
 
-  return text.trim();
-}
+    const errorMarkerIndex =
+      rawError.indexOf(
+        JDOODLE_TIMEOUT_MARKER
+      );
 
-const output = cleanJDoodleText(rawOutput);
-let error = cleanJDoodleText(rawError);
+    const output =
+      outputMarkerIndex !== -1
+        ? rawOutput
+            .substring(
+              0,
+              outputMarkerIndex
+            )
+            .trim()
+        : rawOutput.trim();
 
-// ---------------------------------------------
-// Timeout detection
-// ---------------------------------------------
+    let error =
+      errorMarkerIndex !== -1
+        ? rawError
+            .substring(
+              0,
+              errorMarkerIndex
+            )
+            .trim()
+        : rawError.trim();
 
-const hasJDoodleTimeout =
-  rawOutput.includes(JDoodle_TIMEOUT_MARKER) ||
-  rawError.includes(JDoodle_TIMEOUT_MARKER);
+    // -----------------------------------------
+    // Timeout detection
+    // -----------------------------------------
 
-if (hasJDoodleTimeout) {
-  // If there was already a real compiler/runtime
-  // error before the JDoodle message, keep it.
-  if (!output && !error) {
-    error =
-      "Program timed out. Check for an infinite loop or missing input.";
-  }
-}
-return NextResponse.json({
-  success: compiled && executed,
-  compiled,
-  executed,
-  output,
-  error,
-  exitCode:
-    compiled && executed
-      ? 0
-      : 1,
-  memory:
-    data.memory || null,
-  cpuTime:
-    data.cpuTime || null,
-  compilationStatus:
-    data.compilationStatus ?? null,
-});
+    const hasJDoodleTimeout =
+      rawOutput.includes(
+        JDOODLE_TIMEOUT_MARKER
+      ) ||
+      rawError.includes(
+        JDOODLE_TIMEOUT_MARKER
+      );
+
+    if (
+      hasJDoodleTimeout &&
+      !output &&
+      !error
+    ) {
+      error =
+        "Program timed out. Check for an infinite loop or missing input.";
+    }
+
+    // -----------------------------------------
+    // Response
+    // -----------------------------------------
+
+    return NextResponse.json({
+      success:
+        compiled && executed,
+
+      compiled,
+
+      executed,
+
+      output,
+
+      error,
+
+      exitCode:
+        compiled && executed
+          ? 0
+          : 1,
+
+      memory:
+        data.memory || null,
+
+      cpuTime:
+        data.cpuTime || null,
+
+      compilationStatus:
+        data.compilationStatus ??
+        null,
+    });
   } catch (error: any) {
     console.error(
       "Diagramly JDoodle compiler error:",
@@ -251,17 +351,24 @@ return NextResponse.json({
     return NextResponse.json(
       {
         success: false,
+
         compiled: false,
+
         executed: false,
+
         output: "",
+
         error:
           error?.cause?.code ||
           error?.cause?.message ||
           error?.message ||
           "Compiler service failed.",
+
         exitCode: null,
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
