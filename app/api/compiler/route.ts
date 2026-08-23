@@ -31,9 +31,22 @@ const LANGUAGE_CONFIG: Record<
   },
 };
 
-const JDOODLE_TIMEOUT_MARKER = "JDoodle - Timeout";
+/**
+ * JDoodle timeout marker.
+ */
+const JDOODLE_TIMEOUT_MARKER =
+  "JDoodle - Timeout";
 
-function cleanJDoodleText(text: string): string {
+/**
+ * Removes the JDoodle timeout message from
+ * the actual compiler/runtime output.
+ *
+ * IMPORTANT:
+ * This function is intentionally outside POST().
+ */
+function cleanJDoodleText(
+  text: string
+): string {
   const markerIndex = text.indexOf(
     JDOODLE_TIMEOUT_MARKER
   );
@@ -47,6 +60,12 @@ function cleanJDoodleText(text: string): string {
   return text.trim();
 }
 
+/**
+ * Execute code through JDoodle API.
+ *
+ * IMPORTANT:
+ * This function is also outside POST().
+ */
 function executeJDoodle(
   payload: object
 ): Promise<any> {
@@ -61,75 +80,102 @@ function executeJDoodle(
         family: 4,
 
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type":
+            "application/json",
+
           "Content-Length":
             Buffer.byteLength(data),
         },
 
         timeout: 15000,
       },
+
       (response) => {
         let body = "";
 
         response.setEncoding("utf8");
 
-        response.on("data", (chunk) => {
-          body += chunk;
-        });
+        response.on(
+          "data",
+          (chunk) => {
+            body += chunk;
+          }
+        );
 
-        response.on("end", () => {
-          try {
-            const parsed = JSON.parse(body);
+        response.on(
+          "end",
+          () => {
+            try {
+              const parsed =
+                JSON.parse(body);
 
-            if (
-              response.statusCode &&
-              response.statusCode >= 400
-            ) {
+              if (
+                response.statusCode &&
+                response.statusCode >= 400
+              ) {
+                reject(
+                  new Error(
+                    parsed.error ||
+                      parsed.message ||
+                      `JDoodle HTTP ${response.statusCode}`
+                  )
+                );
+
+                return;
+              }
+
+              resolve(parsed);
+            } catch {
               reject(
                 new Error(
-                  parsed.error ||
-                    parsed.message ||
-                    `JDoodle HTTP ${response.statusCode}`
+                  `Invalid JDoodle response: ${body}`
                 )
               );
-
-              return;
             }
-
-            resolve(parsed);
-          } catch {
-            reject(
-              new Error(
-                `Invalid JDoodle response: ${body}`
-              )
-            );
           }
-        });
+        );
       }
     );
 
-    request.on("timeout", () => {
-      request.destroy(
-        new Error(
-          "JDoodle connection timed out."
-        )
-      );
-    });
+    request.on(
+      "timeout",
+      () => {
+        request.destroy(
+          new Error(
+            "JDoodle connection timed out."
+          )
+        );
+      }
+    );
 
-    request.on("error", (error) => {
-      reject(error);
-    });
+    request.on(
+      "error",
+      (error) => {
+        reject(error);
+      }
+    );
 
     request.write(data);
     request.end();
   });
 }
 
-export async function POST(request: Request) {
+/**
+ * Compiler API
+ */
+export async function POST(
+  request: Request
+) {
   try {
+    // ---------------------------------------------
+    // Read request
+    // ---------------------------------------------
+
     const body = await request.json();
 
-    const language = body.language as Language;
+    const language =
+      body.language as Language;
+
     const code = body.code;
 
     const stdin =
@@ -138,7 +184,7 @@ export async function POST(request: Request) {
         : "";
 
     // ---------------------------------------------
-    // Validation
+    // Validate language and code
     // ---------------------------------------------
 
     if (!language || !code) {
@@ -148,9 +194,15 @@ export async function POST(request: Request) {
           message:
             "Language and code are required.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
+
+    // ---------------------------------------------
+    // Validate supported language
+    // ---------------------------------------------
 
     if (!LANGUAGE_CONFIG[language]) {
       return NextResponse.json(
@@ -159,12 +211,14 @@ export async function POST(request: Request) {
           message:
             "Unsupported programming language.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     // ---------------------------------------------
-    // JDoodle credentials
+    // Get JDoodle credentials
     // ---------------------------------------------
 
     const clientId =
@@ -173,14 +227,19 @@ export async function POST(request: Request) {
     const clientSecret =
       process.env.JDOODLE_CLIENT_SECRET;
 
-    if (!clientId || !clientSecret) {
+    if (
+      !clientId ||
+      !clientSecret
+    ) {
       return NextResponse.json(
         {
           success: false,
           message:
             "JDoodle credentials are not configured.",
         },
-        { status: 500 }
+        {
+          status: 500,
+        }
       );
     }
 
@@ -192,50 +251,69 @@ export async function POST(request: Request) {
       LANGUAGE_CONFIG[language];
 
     // ---------------------------------------------
-    // Execute code using JDoodle
+    // Execute code
     // ---------------------------------------------
 
-    const data = await executeJDoodle({
-      clientId,
-      clientSecret,
+    const data =
+      await executeJDoodle({
+        clientId,
+        clientSecret,
 
-      script: code,
+        script: code,
 
-      stdin,
+        stdin,
 
-      language: config.language,
+        language:
+          config.language,
 
-      versionIndex: config.versionIndex,
+        versionIndex:
+          config.versionIndex,
 
-      compileOnly: false,
-    });
+        compileOnly: false,
+      });
 
     // ---------------------------------------------
-    // Compilation / execution status
+    // Compilation status
     // ---------------------------------------------
 
     const compiled =
       data.isCompiled !== false &&
       data.compilationStatus !== 1;
 
+    // ---------------------------------------------
+    // Execution status
+    // ---------------------------------------------
+
     const executed =
       data.isExecutionSuccess === true;
 
     // ---------------------------------------------
-    // Clean JDoodle response
+    // Raw JDoodle output
     // ---------------------------------------------
 
     const rawOutput =
-      data.output || "";
+      typeof data.output === "string"
+        ? data.output
+        : "";
 
     const rawError =
-      data.error || "";
+      typeof data.error === "string"
+        ? data.error
+        : "";
+
+    // ---------------------------------------------
+    // Clean output
+    // ---------------------------------------------
 
     const output =
-      cleanJDoodleText(rawOutput);
+      cleanJDoodleText(
+        rawOutput
+      );
 
     let error =
-      cleanJDoodleText(rawError);
+      cleanJDoodleText(
+        rawError
+      );
 
     // ---------------------------------------------
     // Timeout detection
@@ -251,9 +329,8 @@ export async function POST(request: Request) {
 
     if (hasJDoodleTimeout) {
       /*
-       * If there was already a real
-       * compiler/runtime error before the
-       * JDoodle timeout message, keep it.
+       * If there is already a real compiler
+       * or runtime error, preserve it.
        */
       if (!output && !error) {
         error =
@@ -262,7 +339,7 @@ export async function POST(request: Request) {
     }
 
     // ---------------------------------------------
-    // Response
+    // Return compiler result
     // ---------------------------------------------
 
     return NextResponse.json({
@@ -293,6 +370,10 @@ export async function POST(request: Request) {
         null,
     });
   } catch (error: any) {
+    // ---------------------------------------------
+    // Error handling
+    // ---------------------------------------------
+
     console.error(
       "Diagramly JDoodle compiler error:",
       error
@@ -321,7 +402,9 @@ export async function POST(request: Request) {
 
         exitCode: null,
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
