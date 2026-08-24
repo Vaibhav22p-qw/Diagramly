@@ -359,17 +359,16 @@ export async function GET(request: Request) {
           score += 25;
         }
 
-        // -------------------------------------
-        // Language matching
-        // -------------------------------------
+// -------------------------------------
+// Language matching
+// -------------------------------------
 
-        if (
-          language &&
-          language !== "unknown" &&
-          itemLanguage === language.toLowerCase()
-        ) {
-          score += 40;
-        }
+if (
+  language &&
+  itemLanguage === language
+) {
+  score += 40;
+}
 
         // -------------------------------------
         // Complexity matching
