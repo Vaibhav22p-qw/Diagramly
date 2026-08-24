@@ -2,6 +2,72 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Knowledge from "@/models/Knowledge";
 import { analyzeConcept } from "@/lib/knowledge/concept-engine";
+import { generateEmbeddingSafely } from "@/lib/knowledge/embeddings";
+
+type CanonicalLanguage = "c" | "cpp" | "java" | "python";
+
+const CANONICAL_LANGUAGES = new Set<CanonicalLanguage>([
+  "c",
+  "cpp",
+  "java",
+  "python",
+]);
+const VECTOR_INDEX_NAME =
+  process.env.KNOWLEDGE_VECTOR_INDEX || "knowledge_embedding_vector";
+const SEMANTIC_CANDIDATE_LIMIT = 50;
+
+function getCanonicalLanguage(value: string): CanonicalLanguage | "" {
+  const normalized = value.trim().toLowerCase();
+
+  return CANONICAL_LANGUAGES.has(normalized as CanonicalLanguage)
+    ? (normalized as CanonicalLanguage)
+    : "";
+}
+
+async function findSemanticScores(
+  query: string,
+  language: CanonicalLanguage | ""
+): Promise<Map<string, number>> {
+  const queryEmbedding = await generateEmbeddingSafely(query);
+
+  if (!queryEmbedding) return new Map();
+
+  try {
+    const results = await Knowledge.aggregate<{
+      _id: { toString(): string };
+      semanticScore: number;
+    }>([
+      {
+        $vectorSearch: {
+          index: VECTOR_INDEX_NAME,
+          path: "embedding",
+          queryVector: queryEmbedding,
+          numCandidates: SEMANTIC_CANDIDATE_LIMIT * 4,
+          limit: SEMANTIC_CANDIDATE_LIMIT,
+          ...(language ? { filter: { language } } : {}),
+        },
+      },
+      {
+        $project: {
+          semanticScore: { $meta: "vectorSearchScore" },
+        },
+      },
+    ]);
+
+    return new Map(
+      results.map((result) => [
+        result._id.toString(),
+        result.semanticScore,
+      ])
+    );
+  } catch (error) {
+    console.warn(
+      "Diagramly semantic retrieval unavailable; using keyword retrieval:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
+    return new Map();
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -184,8 +250,9 @@ export async function GET(request: Request) {
 
     const analysis = analyzeConcept(query);
 
-    const language =
-      requestedLanguage || analysis.language;
+    const language = getCanonicalLanguage(
+      requestedLanguage || analysis.language
+    );
 
     // -----------------------------------------
     // 2. Build search terms
@@ -230,9 +297,27 @@ export async function GET(request: Request) {
       });
     }
 
-    const knowledgeItems = await Knowledge.find({
+    const keywordQuery = {
       $or: searchConditions,
-    }).limit(50);
+    };
+
+    const semanticScores = await findSemanticScores(query, language);
+    const semanticIds = Array.from(semanticScores.keys());
+
+    const knowledgeItems = await Knowledge.find(
+      semanticIds.length > 0
+        ? {
+            $or: [
+              keywordQuery,
+              {
+                _id: {
+                  $in: semanticIds,
+                },
+              },
+            ],
+          }
+        : keywordQuery
+    ).limit(SEMANTIC_CANDIDATE_LIMIT * 2);
 
     // -----------------------------------------
     // 3. Rank the knowledge
@@ -245,6 +330,12 @@ export async function GET(request: Request) {
         const itemLanguage = item.language.toLowerCase();
 
         let score = 0;
+
+        const semanticScore = semanticScores.get(item._id.toString());
+
+        if (semanticScore !== undefined) {
+          score += Math.round(semanticScore * 100);
+        }
 
         // -------------------------------------
         // Concept matching

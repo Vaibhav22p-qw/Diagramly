@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/wellm/OneDrive/Desktop/Diagramly/Diagramly_19aug/Diagramly-main/app/(routes)/workspace/_components/Canvas.tsx"],"sourcesContent":["\"use client\";\n\n\nexport default function Canvas() {\n  return (\n    <div className=\"h-full\">\n    </div>\n  );\n}\n"],"names":["Canvas","className"],"mappings":";;;;;AAAA;;AAGe,SAASA;IACtB,qBACE,6LAAC;QAAIC,WAAU;;;;;;AAGnB;KALwBD"}}]
+}

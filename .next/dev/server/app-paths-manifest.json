@@ -1,0 +1,9 @@
+{
+  "/(routes)/dashboard/workspaces/[id]/page": "app/(routes)/dashboard/workspaces/[id]/page.js",
+  "/api/compiler/interactive/route": "app/api/compiler/interactive/route.js",
+  "/api/knowledge/learn/route": "app/api/knowledge/learn/route.js",
+  "/api/knowledge/route": "app/api/knowledge/route.js",
+  "/api/liveblocks-auth/route": "app/api/liveblocks-auth/route.js",
+  "/api/profile/route": "app/api/profile/route.js",
+  "/api/workspaces/[id]/route": "app/api/workspaces/[id]/route.js"
+}

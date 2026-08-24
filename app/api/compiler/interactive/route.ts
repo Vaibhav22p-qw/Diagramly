@@ -4,8 +4,12 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import crypto from "crypto";
+import {
+  recordSuccessfulExecution,
+  type CompilerLanguage,
+} from "@/lib/compiler/execution-results";
 
-type Language = "c" | "cpp" | "java" | "python";
+type Language = CompilerLanguage;
 
 type CompilerSession = {
   process: ChildProcessWithoutNullStreams;
@@ -14,6 +18,8 @@ type CompilerSession = {
   finished: boolean;
   exitCode: number | null;
   tempDir: string;
+  language: Language;
+  sourceCode: string;
 };
 
 const sessions = new Map<string, CompilerSession>();
@@ -298,6 +304,8 @@ export async function POST(request: Request) {
         finished: false,
         exitCode: null,
         tempDir,
+        language,
+        sourceCode: code,
       };
 
       sessions.set(
@@ -335,6 +343,13 @@ export async function POST(request: Request) {
         async (code) => {
           session.finished = true;
           session.exitCode = code;
+
+          recordSuccessfulExecution({
+            executionId: sessionId,
+            language: session.language,
+            sourceCode: session.sourceCode,
+            exitCode: code,
+          });
 
           setTimeout(async () => {
             sessions.delete(sessionId);

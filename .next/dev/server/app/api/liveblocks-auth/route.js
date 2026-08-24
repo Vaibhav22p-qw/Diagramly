@@ -1,0 +1,10 @@
+var R=require("../../../chunks/[turbopack]_runtime.js")("server/app/api/liveblocks-auth/route.js")
+R.c("server/chunks/node_modules_node-fetch_lib_index_mjs_1_d-qeu._.js")
+R.c("server/chunks/node_modules_next_16l39gh._.js")
+R.c("server/chunks/node_modules_@liveblocks_core_dist_index_13wwvtc.js")
+R.c("server/chunks/node_modules_@liveblocks_node_dist_index_15g8bvr.js")
+R.c("server/chunks/node_modules_0ci9r4t._.js")
+R.c("server/chunks/[root-of-the-server]__02a-9qq._.js")
+R.c("server/chunks/_next-internal_server_app_api_liveblocks-auth_route_actions_1bdtv7o.js")
+R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/app/api/liveblocks-auth/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/app/api/liveblocks-auth/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports

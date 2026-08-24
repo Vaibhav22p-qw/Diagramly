@@ -1,0 +1,21 @@
+{
+  "[project]/app/(routes)/workspace/_components/Compiler.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/app/(routes)/workspace/_components/Compiler.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/_0-jm243._.js"
+    ]
+  },
+  "[project]/app/(routes)/workspace/_components/Editor.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/app/(routes)/workspace/_components/Editor.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/node_modules_17y_n-s._.js",
+      "static/chunks/app_(routes)_workspace__components_Editor_tsx_1w6xws9._.js"
+    ]
+  },
+  "[project]/app/(routes)/workspace/_components/Canvas.tsx [app-client] (ecmascript, next/dynamic entry)": {
+    "id": "[project]/app/(routes)/workspace/_components/Canvas.tsx [app-client] (ecmascript, next/dynamic entry)",
+    "files": [
+      "static/chunks/app_(routes)_workspace__components_Canvas_tsx_1qesz04._.js"
+    ]
+  }
+}

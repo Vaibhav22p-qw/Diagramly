@@ -1,0 +1,3 @@
+{
+  "/(routes)/dashboard/workspaces/[id]/page": "app/(routes)/dashboard/workspaces/[id]/page.js"
+}

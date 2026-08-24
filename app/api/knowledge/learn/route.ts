@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 import { learnFromSolution } from "@/lib/knowledge/learn";
+import {
+  consumeSuccessfulExecution,
+  type CompilerLanguage,
+} from "@/lib/compiler/execution-results";
+
+const SUPPORTED_LANGUAGES = new Set<CompilerLanguage>([
+  "c",
+  "cpp",
+  "java",
+  "python",
+]);
 
 export async function POST(request: Request) {
   try {
@@ -9,18 +20,45 @@ export async function POST(request: Request) {
       prompt,
       code,
       language,
-      validation,
+      executionId,
       source,
     } = body;
 
-    if (!prompt || !code || !language) {
+    if (!prompt || !code || !language || !executionId) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "prompt, code, and language are required.",
+            "prompt, code, language, and executionId are required.",
         },
         { status: 400 }
+      );
+    }
+
+    if (!SUPPORTED_LANGUAGES.has(language)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unsupported programming language.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const validation = consumeSuccessfulExecution({
+      executionId,
+      language,
+      sourceCode: code,
+    });
+
+    if (!validation) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "This solution does not match a recent successful compiler execution.",
+        },
+        { status: 409 }
       );
     }
 
@@ -28,14 +66,12 @@ export async function POST(request: Request) {
       prompt,
       code,
       language,
-
-      validation: {
-        compiled: validation?.compiled ?? false,
-        testsPassed: validation?.testsPassed ?? false,
-        accepted: validation?.accepted ?? false,
+      validation,
+      source: {
+        type: "compiler",
+        userId: source?.userId,
+        workspaceId: source?.workspaceId,
       },
-
-      source,
     });
 
     return NextResponse.json({

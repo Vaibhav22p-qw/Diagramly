@@ -1,11 +1,19 @@
 import { connectDB } from "@/lib/mongodb";
 import Knowledge from "@/models/Knowledge";
 import { analyzeConcept } from "@/lib/knowledge/concept-engine";
+import type { CompilerLanguage } from "@/lib/compiler/execution-results";
+import {
+  buildEmbeddingText,
+  createKnowledgeEmbedding,
+  EMBEDDING_DIMENSIONS,
+  EMBEDDING_VERSION,
+  getEmbeddingTextHash,
+} from "@/lib/knowledge/embeddings";
 
 type LearnInput = {
   prompt: string;
   code: string;
-  language: string;
+  language: CompilerLanguage;
 
   validation: {
     compiled: boolean;
@@ -54,9 +62,7 @@ export async function learnFromSolution(
     `${prompt} ${language}`
   );
 
-  const detectedLanguage =
-    language?.trim() ||
-    analysis.language;
+  const detectedLanguage = language;
 
   const tags = Array.from(
     new Set([
@@ -72,6 +78,17 @@ export async function learnFromSolution(
 
   await connectDB();
 
+  const embeddingInput = {
+    prompt,
+    concept: analysis.concept,
+    intent: analysis.intent,
+    language: detectedLanguage,
+    tags,
+  };
+  const embeddingTextHash = getEmbeddingTextHash(
+    buildEmbeddingText(embeddingInput)
+  );
+
   // Check whether Diagramly already knows
   // this concept + language + intent.
   const existing = await Knowledge.findOne({
@@ -81,18 +98,46 @@ export async function learnFromSolution(
   });
 
   if (existing) {
-    // Keep the better validated solution.
-    if (
+    const meaningfulContentChanged =
       !existing.validation.accepted ||
-      existing.code !== code
-    ) {
+      existing.code !== code ||
+      existing.prompt !== prompt ||
+      existing.tags.join("\u0000") !== tags.join("\u0000");
+
+    const hasCurrentEmbedding =
+      existing.embedding?.length === EMBEDDING_DIMENSIONS &&
+      existing.embeddingVersion === EMBEDDING_VERSION &&
+      existing.embeddingTextHash === embeddingTextHash;
+
+    const knowledgeEmbedding =
+      meaningfulContentChanged || !hasCurrentEmbedding
+        ? await createKnowledgeEmbedding(embeddingInput)
+        : null;
+
+    // Keep the better validated solution.
+    if (meaningfulContentChanged) {
       existing.code = code;
       existing.prompt = prompt;
-
       existing.validation = validation;
-
       existing.tags = tags;
+      existing.tags = tags;
+    }
 
+    if (knowledgeEmbedding) {
+      existing.embedding = knowledgeEmbedding.embedding;
+      existing.embeddingModel = knowledgeEmbedding.embeddingModel;
+      existing.embeddingVersion = knowledgeEmbedding.embeddingVersion;
+      existing.embeddingTextHash = knowledgeEmbedding.embeddingTextHash;
+      existing.embeddedAt = knowledgeEmbedding.embeddedAt;
+    } else if (meaningfulContentChanged) {
+      existing.embedding = undefined;
+      existing.embeddingModel = undefined;
+      existing.embeddingVersion = undefined;
+      existing.embeddingTextHash = undefined;
+      existing.embeddedAt = undefined;
+    }
+
+    if (meaningfulContentChanged || knowledgeEmbedding) {
       await existing.save();
     }
 
@@ -103,6 +148,8 @@ export async function learnFromSolution(
       concept: existing.concept,
     };
   }
+
+  const knowledgeEmbedding = await createKnowledgeEmbedding(embeddingInput);
 
   const knowledge = await Knowledge.create({
     concept: analysis.concept,
@@ -126,6 +173,8 @@ export async function learnFromSolution(
     },
 
     tags,
+
+    ...(knowledgeEmbedding || {}),
   });
 
   return {

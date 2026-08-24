@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IKnowledge extends Document {
   concept: string;
   intent: string;
-  language: string;
+  language: "c" | "cpp" | "java" | "python";
 
   prompt: string;
   code: string;
@@ -26,6 +26,12 @@ export interface IKnowledge extends Document {
   };
 
   tags: string[];
+
+  embedding?: number[];
+  embeddingModel?: string;
+  embeddingVersion?: number;
+  embeddingTextHash?: string;
+  embeddedAt?: Date;
 
   createdAt: Date;
   updatedAt: Date;
@@ -51,6 +57,7 @@ const KnowledgeSchema = new Schema<IKnowledge>(
       required: true,
       index: true,
       trim: true,
+      enum: ["c", "cpp", "java", "python"],
     },
 
     prompt: {
@@ -113,6 +120,27 @@ const KnowledgeSchema = new Schema<IKnowledge>(
       type: [String],
       default: [],
       index: true,
+    },
+
+    embedding: {
+      type: [Number],
+      default: undefined,
+    },
+
+    embeddingModel: {
+      type: String,
+    },
+
+    embeddingVersion: {
+      type: Number,
+    },
+
+    embeddingTextHash: {
+      type: String,
+    },
+
+    embeddedAt: {
+      type: Date,
     },
   },
   {

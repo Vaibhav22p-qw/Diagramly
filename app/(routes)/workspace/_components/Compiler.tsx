@@ -15,6 +15,8 @@ import Terminal, {
   TerminalEntry,
 } from "@/components/compiler/Terminal";
 
+type CompilerLanguage = "c" | "cpp" | "java" | "python";
+
 const LANGUAGES: Record<
   string,
   { name: string; monacoLang: string; defaultCode: string }
@@ -50,7 +52,7 @@ export default function Compiler() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const isDark = theme === "dark";
 
-  const [languageKey, setLanguageKey] = useState<string>("cpp");
+  const [languageKey, setLanguageKey] = useState<CompilerLanguage>("cpp");
   const [code, setCode] = useState<string>(LANGUAGES["cpp"].defaultCode);
 
   const [showAI, setShowAI] = useState(false);
@@ -66,6 +68,13 @@ export default function Compiler() {
   const [compileStatus, setCompileStatus] = useState<
     "idle" | "success" | "error"
   >("idle");
+  const [successfulExecutionId, setSuccessfulExecutionId] =
+    useState<string | null>(null);
+  const [codePrompt, setCodePrompt] = useState<string | null>(null);
+  const [retrievedPrompt, setRetrievedPrompt] = useState<string | null>(null);
+  const [successfulExecutionPrompt, setSuccessfulExecutionPrompt] =
+    useState<string | null>(null);
+  const [isLearning, setIsLearning] = useState(false);
 
   const [terminalEntries, setTerminalEntries] =
     useState<TerminalEntry[]>([]);
@@ -85,6 +94,8 @@ export default function Compiler() {
     setCompilerError("");
     setExitCode(null);
     setCompileStatus("idle");
+    setSuccessfulExecutionId(null);
+    setSuccessfulExecutionPrompt(null);
   };
   useEffect(() => {
   const handleTerminalClear = () => {
@@ -103,10 +114,14 @@ export default function Compiler() {
     );
   };
 }, []);
-  const handleLanguageChange = (key: string) => {
+  const handleLanguageChange = (key: CompilerLanguage) => {
     setLanguageKey(key);
     setCode(LANGUAGES[key].defaultCode);
     setAiResponse("");
+    setSuccessfulExecutionId(null);
+    setCodePrompt(null);
+    setRetrievedPrompt(null);
+    setSuccessfulExecutionPrompt(null);
   };
 
   const handleCopyCode = () => {
@@ -117,6 +132,15 @@ export default function Compiler() {
 
   const handleResetCode = () => {
     setCode(LANGUAGES[languageKey].defaultCode);
+    setSuccessfulExecutionId(null);
+    setCodePrompt(null);
+    setSuccessfulExecutionPrompt(null);
+  };
+
+  const handleCodeChange = (value: string) => {
+    setCode(value);
+    setSuccessfulExecutionId(null);
+    setSuccessfulExecutionPrompt(null);
   };
 
 const handleRunCode = async () => {
@@ -127,6 +151,7 @@ const handleRunCode = async () => {
   setCompilerError("");
   setExitCode(null);
   setCompileStatus("idle");
+  setSuccessfulExecutionId(null);
 
   setTerminalEntries(
     input.trim()
@@ -209,11 +234,15 @@ const handleRunCode = async () => {
 const handleInteractiveRun = async () => {
   if (!code.trim() || isRunning) return;
 
+  const promptForExecution = codePrompt || prompt.trim() || null;
+
   setIsRunning(true);
   setOutput("");
   setCompilerError("");
   setExitCode(null);
   setCompileStatus("idle");
+  setSuccessfulExecutionId(null);
+  setSuccessfulExecutionPrompt(null);
   setTerminalEntries([]);
 
   try {
@@ -349,6 +378,11 @@ const handleInteractiveRun = async () => {
           jdoodleSessionRef.current =
             null;
 
+          if (pollData.exitCode === 0) {
+            setSuccessfulExecutionId(data.sessionId);
+            setSuccessfulExecutionPrompt(promptForExecution);
+          }
+
           return;
         }
 
@@ -458,16 +492,19 @@ const sendRuntimeInput = () => {
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
 
+    const originalPrompt = prompt.trim();
+
     setIsGenerating(true);
     setAiResponse("");
     setKnowledgeId(null);
+    setRetrievedPrompt(null);
 
     try {
       const response = await fetch(
         `/api/knowledge?q=${encodeURIComponent(
-          prompt
+          originalPrompt
         )}&language=${encodeURIComponent(
-          LANGUAGES[languageKey].name
+          languageKey
         )}`
       );
 
@@ -490,6 +527,7 @@ const sendRuntimeInput = () => {
 
       setAiResponse(bestResult.code || "");
       setKnowledgeId(bestResult.id || null);
+      setRetrievedPrompt(originalPrompt);
 
       // Tell Diagramly this knowledge was retrieved.
       if (bestResult.id) {
@@ -518,6 +556,57 @@ const sendRuntimeInput = () => {
     }
   };
 
+  const handleLearnSuccessfulSolution = async () => {
+    if (!successfulExecutionId || isLearning) return;
+
+    setIsLearning(true);
+
+    try {
+      const response = await fetch("/api/knowledge/learn", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt:
+            successfulExecutionPrompt || "manual code submission",
+          code,
+          language: languageKey,
+          executionId: successfulExecutionId,
+          source: {
+            type: "compiler",
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success || !data.learned) {
+        throw new Error(data.message || "Failed to learn solution.");
+      }
+
+      setTerminalEntries((prev) => [
+        ...prev,
+        {
+          type: "system",
+          text: "Solution saved to Diagramly knowledge.",
+        },
+      ]);
+      setSuccessfulExecutionId(null);
+      setSuccessfulExecutionPrompt(null);
+    } catch (error: any) {
+      setTerminalEntries((prev) => [
+        ...prev,
+        {
+          type: "error",
+          text: error.message || "Failed to learn solution.",
+        },
+      ]);
+    } finally {
+      setIsLearning(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
@@ -528,7 +617,8 @@ const sendRuntimeInput = () => {
   const handleInsertCode = async () => {
     if (!aiResponse.trim()) return;
 
-    setCode(aiResponse);
+    handleCodeChange(aiResponse);
+    setCodePrompt(retrievedPrompt || prompt.trim() || null);
 
     // Mark the learned solution as accepted.
     if (knowledgeId) {
@@ -576,7 +666,9 @@ const sendRuntimeInput = () => {
               id="language-select"
               aria-label="Select programming language"
               value={languageKey}
-              onChange={(e) => handleLanguageChange(e.target.value)}
+              onChange={(e) =>
+                handleLanguageChange(e.target.value as CompilerLanguage)
+              }
               className={`text-xs font-medium px-3 py-1.5 pr-8 rounded-md border transition-all cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
                 isDark
                   ? "bg-slate-800 text-slate-200 border-slate-700/80 hover:border-slate-600"
@@ -688,6 +780,17 @@ const sendRuntimeInput = () => {
     </>
   )}
 </button>
+          {successfulExecutionId && (
+            <button
+              type="button"
+              onClick={handleLearnSuccessfulSolution}
+              disabled={isLearning}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Save this successful solution to Diagramly knowledge"
+            >
+              <span>{isLearning ? "Learning..." : "Learn solution"}</span>
+            </button>
+          )}
           {/* AI Toggle Header Button */}
           <button
             type="button"
@@ -731,7 +834,7 @@ const sendRuntimeInput = () => {
             height="100%"
             language={LANGUAGES[languageKey].monacoLang}
             value={code}
-            onChange={(val) => setCode(val || "")}
+            onChange={(val) => handleCodeChange(val || "")}
             theme={isDark ? "vs-dark" : "light"}
             options={{
               fontSize: 13.5,
