@@ -359,13 +359,15 @@ export async function GET(request: Request) {
           score += 25;
         }
 
-// -------------------------------------
-// Language matching
-// -------------------------------------
+        // -------------------------------------
+        // Language matching
+        // -------------------------------------
 
+       // BEFORE
+// AFTER
 if (
   language &&
-  itemLanguage === language
+  itemLanguage === language.toLowerCase()
 ) {
   score += 40;
 }
