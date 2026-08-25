@@ -24,3 +24,7 @@ docker run --rm -p 8787:8787 \
 ```
 
 For production, place it behind an internal/private network or a service-to-service gateway and set a long random `COMPILER_SERVICE_TOKEN`. The Docker runtime flags above are a recommended baseline; use the equivalent restrictions supplied by your container platform.
+
+## Railway
+
+Set Railway's **Root Directory** to `/compiler-service`, use the Dockerfile's default start command, and configure `/health` as the **Healthcheck Path**. No `PORT` variable needs to be added manually: the service listens on Railway's injected `PORT` and falls back to `8787` only outside Railway.

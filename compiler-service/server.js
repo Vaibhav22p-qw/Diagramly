@@ -7,7 +7,8 @@ const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
 
-const PORT = Number(process.env.PORT || 8787);
+// Railway injects PORT at runtime. The fallback is only for local development.
+const PORT = Number(process.env.PORT) || 8787;
 const SERVICE_TOKEN = process.env.COMPILER_SERVICE_TOKEN || "";
 const MAX_SOURCE_BYTES = 256 * 1024;
 const MAX_STDIN_BYTES = 64 * 1024;
@@ -193,7 +194,8 @@ async function interactive(body) {
 }
 
 const server = http.createServer(async (request, response) => {
-  if (request.method === "GET" && request.url === "/health") return send(response, 200, { ok: true });
+  // Deliberately unauthenticated so Railway can probe the running container.
+  if (request.method === "GET" && request.url === "/health") return send(response, 200, { status: "ok" });
   if (request.method !== "POST" || request.url !== "/compile") return send(response, 404, { error: "Not found." });
   if (!isAuthorized(request)) return send(response, 401, { success: false, error: "Unauthorized." });
   let raw = "";

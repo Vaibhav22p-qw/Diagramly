@@ -13,6 +13,6 @@ RUN useradd --system --create-home --uid 10001 compiler \
     && chown compiler:compiler /tmp/diagramly
 
 USER compiler
-ENV NODE_ENV=production PORT=8787 TMPDIR=/tmp/diagramly
+ENV NODE_ENV=production TMPDIR=/tmp/diagramly
 EXPOSE 8787
 CMD ["npm", "start"]
