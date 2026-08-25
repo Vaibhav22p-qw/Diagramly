@@ -12,6 +12,7 @@ const CANONICAL_LANGUAGES = new Set<CanonicalLanguage>([
   "java",
   "python",
 ]);
+
 const VECTOR_INDEX_NAME =
   process.env.KNOWLEDGE_VECTOR_INDEX || "knowledge_embedding_vector";
 const SEMANTIC_CANDIDATE_LIMIT = 50;
@@ -142,14 +143,12 @@ export async function POST(request: Request) {
     );
   }
 }
+
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
 
-    const {
-      knowledgeId,
-      action,
-    } = body;
+    const { knowledgeId, action } = body;
 
     if (!knowledgeId || !action) {
       return NextResponse.json(
@@ -161,15 +160,11 @@ export async function PATCH(request: Request) {
       );
     }
 
-    if (
-      action !== "retrieved" &&
-      action !== "accepted"
-    ) {
+    if (action !== "retrieved" && action !== "accepted") {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "action must be 'retrieved' or 'accepted'.",
+          message: "action must be 'retrieved' or 'accepted'.",
         },
         { status: 400 }
       );
@@ -224,13 +219,13 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
     const query = searchParams.get("q")?.trim() || "";
-    const requestedLanguage =
-      searchParams.get("language")?.trim() || "";
+    const requestedLanguage = searchParams.get("language")?.trim() || "";
 
     if (!query) {
       return NextResponse.json(
@@ -258,11 +253,9 @@ export async function GET(request: Request) {
     // 2. Build search terms
     // -----------------------------------------
 
-    const queryWords = analysis.keywords.filter(
-      (word) => word.length > 2
-    );
+    const queryWords = analysis.keywords.filter((word) => word.length > 2);
 
-    const searchConditions: any[] = [];
+    const searchConditions: Record<string, unknown>[] = [];
 
     if (analysis.concept !== "unknown") {
       searchConditions.push({
@@ -363,14 +356,9 @@ export async function GET(request: Request) {
         // Language matching
         // -------------------------------------
 
-       // BEFORE
-// AFTER
-if (
-  language &&
-  itemLanguage === language.toLowerCase()
-) {
-  score += 40;
-}
+        if (language && itemLanguage === language.toLowerCase()) {
+          score += 40;
+        }
 
         // -------------------------------------
         // Complexity matching
@@ -379,8 +367,7 @@ if (
         if (
           analysis.complexity !== "unknown" &&
           item.tags.some(
-            (tag: string) =>
-              tag.toLowerCase() === analysis.complexity
+            (tag: string) => tag.toLowerCase() === analysis.complexity
           )
         ) {
           score += 15;
@@ -425,10 +412,7 @@ if (
         // Usage history
         // -------------------------------------
 
-        score += Math.min(
-          item.usage.timesAccepted * 3,
-          20
-        );
+        score += Math.min(item.usage.timesAccepted * 3, 20);
 
         return {
           item,

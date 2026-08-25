@@ -1,0 +1,10 @@
+{
+  "name": "diagramly-compiler-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated code execution service for Diagramly",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/server.test.js"
+  }
+}

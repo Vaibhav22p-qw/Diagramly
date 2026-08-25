@@ -6,10 +6,6 @@ import React, {
   useRef,
 } from "react";
 
-import {
-  startJDoodleSession,
-} from "@/lib/compiler/jdoodle-client";
-
 import Editor from "@monaco-editor/react";
 import Terminal, {
   TerminalEntry,
