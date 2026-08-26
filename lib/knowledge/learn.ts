@@ -1,14 +1,12 @@
 import { connectDB } from "@/lib/mongodb";
 import Knowledge from "@/models/Knowledge";
-import { analyzeConcept } from "@/lib/knowledge/concept-engine";
 import type { CompilerLanguage } from "@/lib/compiler/execution-results";
 import {
-  buildEmbeddingText,
-  createKnowledgeEmbedding,
-  EMBEDDING_DIMENSIONS,
-  EMBEDDING_VERSION,
-  getEmbeddingTextHash,
+  createKnowledgeEmbeddingWithStatus,
+  hasCurrentKnowledgeEmbedding,
 } from "@/lib/knowledge/embeddings";
+import { normalizeKnowledge } from "@/lib/knowledge/normalize";
+import { isLearnableValidation } from "@/lib/knowledge/validation";
 
 type LearnInput = {
   prompt: string;
@@ -17,6 +15,7 @@ type LearnInput = {
 
   validation: {
     compiled: boolean;
+    executed: boolean;
     testsPassed: boolean;
     accepted: boolean;
   };
@@ -46,55 +45,35 @@ export async function learnFromSolution(
   }
 
   // Only learn from validated solutions.
-  if (
-    !validation.compiled ||
-    !validation.testsPassed ||
-    !validation.accepted
-  ) {
+  if (!isLearnableValidation(validation)) {
     return {
       learned: false,
       reason: "Solution was not fully validated.",
     };
   }
 
-  // Understand the user's request.
-  const analysis = analyzeConcept(
-    `${prompt} ${language}`
-  );
+  const normalized = normalizeKnowledge({ prompt, language });
+  if (!normalized) {
+    throw new Error("Unsupported programming language.");
+  }
 
-  const detectedLanguage = language;
-
-  const tags = Array.from(
-    new Set([
-      analysis.concept,
-      ...analysis.keywords,
-      analysis.complexity,
-    ])
-  ).filter(
-    (tag) =>
-      tag &&
-      tag !== "unknown"
-  );
+  const { concept, intent, language: detectedLanguage, tags } = normalized;
 
   await connectDB();
 
   const embeddingInput = {
     prompt,
-    concept: analysis.concept,
-    intent: analysis.intent,
+    concept,
+    intent,
     language: detectedLanguage,
     tags,
   };
-  const embeddingTextHash = getEmbeddingTextHash(
-    buildEmbeddingText(embeddingInput)
-  );
-
   // Check whether Diagramly already knows
   // this concept + language + intent.
   const existing = await Knowledge.findOne({
-    concept: analysis.concept,
+    concept,
     language: detectedLanguage,
-    intent: analysis.intent,
+    intent,
   });
 
   if (existing) {
@@ -104,22 +83,22 @@ export async function learnFromSolution(
       existing.prompt !== prompt ||
       existing.tags.join("\u0000") !== tags.join("\u0000");
 
-    const hasCurrentEmbedding =
-      existing.embedding?.length === EMBEDDING_DIMENSIONS &&
-      existing.embeddingVersion === EMBEDDING_VERSION &&
-      existing.embeddingTextHash === embeddingTextHash;
+    const hasCurrentEmbedding = hasCurrentKnowledgeEmbedding(
+      existing,
+      embeddingInput
+    );
 
-    const knowledgeEmbedding =
+    const embeddingAttempt =
       meaningfulContentChanged || !hasCurrentEmbedding
-        ? await createKnowledgeEmbedding(embeddingInput)
-        : null;
+        ? await createKnowledgeEmbeddingWithStatus(embeddingInput)
+        : { knowledgeEmbedding: null };
+    const knowledgeEmbedding = embeddingAttempt.knowledgeEmbedding;
 
     // Keep the better validated solution.
     if (meaningfulContentChanged) {
       existing.code = code;
       existing.prompt = prompt;
       existing.validation = validation;
-      existing.tags = tags;
       existing.tags = tags;
     }
 
@@ -129,15 +108,19 @@ export async function learnFromSolution(
       existing.embeddingVersion = knowledgeEmbedding.embeddingVersion;
       existing.embeddingTextHash = knowledgeEmbedding.embeddingTextHash;
       existing.embeddedAt = knowledgeEmbedding.embeddedAt;
-    } else if (meaningfulContentChanged) {
+      existing.embeddingStatus = "ready";
+      existing.embeddingError = undefined;
+    } else if (meaningfulContentChanged || !hasCurrentEmbedding) {
       existing.embedding = undefined;
       existing.embeddingModel = undefined;
       existing.embeddingVersion = undefined;
       existing.embeddingTextHash = undefined;
       existing.embeddedAt = undefined;
+      existing.embeddingStatus = embeddingAttempt.error ? "failed" : "pending";
+      existing.embeddingError = embeddingAttempt.error;
     }
 
-    if (meaningfulContentChanged || knowledgeEmbedding) {
+    if (meaningfulContentChanged || knowledgeEmbedding || embeddingAttempt.error) {
       await existing.save();
     }
 
@@ -149,11 +132,12 @@ export async function learnFromSolution(
     };
   }
 
-  const knowledgeEmbedding = await createKnowledgeEmbedding(embeddingInput);
+  const embeddingAttempt = await createKnowledgeEmbeddingWithStatus(embeddingInput);
+  const knowledgeEmbedding = embeddingAttempt.knowledgeEmbedding;
 
   const knowledge = await Knowledge.create({
-    concept: analysis.concept,
-    intent: analysis.intent,
+    concept,
+    intent,
     language: detectedLanguage,
 
     prompt,
@@ -175,6 +159,8 @@ export async function learnFromSolution(
     tags,
 
     ...(knowledgeEmbedding || {}),
+    embeddingStatus: knowledgeEmbedding ? "ready" : "failed",
+    ...(knowledgeEmbedding ? {} : { embeddingError: embeddingAttempt.error }),
   });
 
   return {

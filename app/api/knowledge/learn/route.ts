@@ -2,15 +2,8 @@ import { NextResponse } from "next/server";
 import { learnFromSolution } from "@/lib/knowledge/learn";
 import {
   consumeSuccessfulExecution,
-  type CompilerLanguage,
 } from "@/lib/compiler/execution-results";
-
-const SUPPORTED_LANGUAGES = new Set<CompilerLanguage>([
-  "c",
-  "cpp",
-  "java",
-  "python",
-]);
+import { normalizeKnowledge } from "@/lib/knowledge/normalize";
 
 export async function POST(request: Request) {
   try {
@@ -35,7 +28,8 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!SUPPORTED_LANGUAGES.has(language)) {
+    const normalized = normalizeKnowledge({ prompt, language });
+    if (!normalized) {
       return NextResponse.json(
         {
           success: false,
@@ -47,7 +41,7 @@ export async function POST(request: Request) {
 
     const validation = consumeSuccessfulExecution({
       executionId,
-      language,
+      language: normalized.language,
       sourceCode: code,
     });
 
@@ -65,7 +59,7 @@ export async function POST(request: Request) {
     const result = await learnFromSolution({
       prompt,
       code,
-      language,
+      language: normalized.language,
       validation,
       source: {
         type: "compiler",

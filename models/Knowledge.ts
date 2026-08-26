@@ -16,6 +16,7 @@ export interface IKnowledge extends Document {
 
   validation: {
     compiled: boolean;
+    executed: boolean;
     testsPassed: boolean;
     accepted: boolean;
   };
@@ -32,6 +33,8 @@ export interface IKnowledge extends Document {
   embeddingVersion?: number;
   embeddingTextHash?: string;
   embeddedAt?: Date;
+  embeddingStatus: "pending" | "ready" | "failed";
+  embeddingError?: string;
 
   createdAt: Date;
   updatedAt: Date;
@@ -93,6 +96,11 @@ const KnowledgeSchema = new Schema<IKnowledge>(
         default: false,
       },
 
+      executed: {
+        type: Boolean,
+        default: false,
+      },
+
       testsPassed: {
         type: Boolean,
         default: false,
@@ -141,6 +149,18 @@ const KnowledgeSchema = new Schema<IKnowledge>(
 
     embeddedAt: {
       type: Date,
+    },
+
+    embeddingStatus: {
+      type: String,
+      enum: ["pending", "ready", "failed"],
+      default: "pending",
+      index: true,
+    },
+
+    embeddingError: {
+      type: String,
+      trim: true,
     },
   },
   {

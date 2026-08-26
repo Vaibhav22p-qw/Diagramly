@@ -54,7 +54,9 @@ export function consumeSuccessfulExecution({
 
   return {
     compiled: true,
-    testsPassed: true,
+    executed: true,
+    // An exit code only establishes execution success. It is not a test result.
+    testsPassed: false,
     accepted: true,
   };
 }

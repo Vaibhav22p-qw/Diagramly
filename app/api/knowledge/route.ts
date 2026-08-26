@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Knowledge from "@/models/Knowledge";
 import { analyzeConcept } from "@/lib/knowledge/concept-engine";
-import { generateEmbeddingSafely } from "@/lib/knowledge/embeddings";
+import {
+  createKnowledgeEmbeddingWithStatus,
+  generateEmbeddingSafely,
+} from "@/lib/knowledge/embeddings";
+import { normalizeKnowledge } from "@/lib/knowledge/normalize";
+import {
+  buildHybridKnowledgeQuery,
+  buildKeywordKnowledgeQuery,
+} from "@/lib/knowledge/retrieval";
 
 type CanonicalLanguage = "c" | "cpp" | "java" | "python";
 
@@ -95,12 +103,32 @@ export async function POST(request: Request) {
       );
     }
 
-    await connectDB();
-
-    const knowledge = await Knowledge.create({
+    const normalized = normalizeKnowledge({
+      prompt,
       concept,
       intent,
       language,
+      tags,
+    });
+
+    if (!normalized) {
+      return NextResponse.json(
+        { success: false, message: "Unsupported programming language." },
+        { status: 400 }
+      );
+    }
+
+    const embeddingAttempt = await createKnowledgeEmbeddingWithStatus({
+      prompt,
+      ...normalized,
+    });
+
+    await connectDB();
+
+    const knowledge = await Knowledge.create({
+      concept: normalized.concept,
+      intent: normalized.intent,
+      language: normalized.language,
       prompt,
       code,
 
@@ -112,7 +140,10 @@ export async function POST(request: Request) {
 
       validation: {
         compiled: validation?.compiled ?? false,
-        testsPassed: validation?.testsPassed ?? false,
+        executed: validation?.executed ?? false,
+        // This endpoint receives no executable test cases or verified test result.
+        // Do not let a caller turn a successful submission into a claimed test pass.
+        testsPassed: false,
         accepted: validation?.accepted ?? false,
       },
 
@@ -121,7 +152,13 @@ export async function POST(request: Request) {
         timesAccepted: 0,
       },
 
-      tags: tags || [],
+      tags: normalized.tags,
+
+      ...(embeddingAttempt.knowledgeEmbedding || {}),
+      embeddingStatus: embeddingAttempt.knowledgeEmbedding ? "ready" : "failed",
+      ...(embeddingAttempt.knowledgeEmbedding
+        ? {}
+        : { embeddingError: embeddingAttempt.error }),
     });
 
     return NextResponse.json(
@@ -290,26 +327,13 @@ export async function GET(request: Request) {
       });
     }
 
-    const keywordQuery = {
-      $or: searchConditions,
-    };
+    const keywordQuery = buildKeywordKnowledgeQuery(searchConditions, language);
 
     const semanticScores = await findSemanticScores(query, language);
     const semanticIds = Array.from(semanticScores.keys());
 
     const knowledgeItems = await Knowledge.find(
-      semanticIds.length > 0
-        ? {
-            $or: [
-              keywordQuery,
-              {
-                _id: {
-                  $in: semanticIds,
-                },
-              },
-            ],
-          }
-        : keywordQuery
+      buildHybridKnowledgeQuery(keywordQuery, semanticIds)
     ).limit(SEMANTIC_CANDIDATE_LIMIT * 2);
 
     // -----------------------------------------

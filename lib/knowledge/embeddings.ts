@@ -9,7 +9,7 @@ export const EMBEDDING_MODEL =
 export const EMBEDDING_VERSION = 1;
 export const EMBEDDING_DIMENSIONS = 384;
 
-type EmbeddingInput = {
+export type EmbeddingInput = {
   prompt: string;
   concept: string;
   intent: string;
@@ -23,6 +23,11 @@ export type KnowledgeEmbedding = {
   embeddingVersion: number;
   embeddingTextHash: string;
   embeddedAt: Date;
+};
+
+export type KnowledgeEmbeddingAttempt = {
+  knowledgeEmbedding: KnowledgeEmbedding | null;
+  error?: string;
 };
 
 let extractorPromise: Promise<FeatureExtractionPipeline> | null = null;
@@ -53,6 +58,21 @@ export function buildEmbeddingText({
 
 export function getEmbeddingTextHash(text: string): string {
   return crypto.createHash("sha256").update(text).digest("hex");
+}
+
+export function hasCurrentKnowledgeEmbedding(
+  record: {
+    embedding?: number[];
+    embeddingVersion?: number;
+    embeddingTextHash?: string;
+  },
+  input: EmbeddingInput
+): boolean {
+  return (
+    record.embedding?.length === EMBEDDING_DIMENSIONS &&
+    record.embeddingVersion === EMBEDDING_VERSION &&
+    record.embeddingTextHash === getEmbeddingTextHash(buildEmbeddingText(input))
+  );
 }
 
 async function getExtractor(): Promise<FeatureExtractionPipeline> {
@@ -105,16 +125,35 @@ export async function generateEmbeddingSafely(
 export async function createKnowledgeEmbedding(
   input: EmbeddingInput
 ): Promise<KnowledgeEmbedding | null> {
+  const attempt = await createKnowledgeEmbeddingWithStatus(input);
+  return attempt.knowledgeEmbedding;
+}
+
+export async function createKnowledgeEmbeddingWithStatus(
+  input: EmbeddingInput,
+  embeddingGenerator: (text: string) => Promise<number[]> = generateEmbedding
+): Promise<KnowledgeEmbeddingAttempt> {
   const embeddingText = buildEmbeddingText(input);
-  const embedding = await generateEmbeddingSafely(embeddingText);
-
-  if (!embedding) return null;
-
-  return {
-    embedding,
-    embeddingModel: EMBEDDING_MODEL,
-    embeddingVersion: EMBEDDING_VERSION,
-    embeddingTextHash: getEmbeddingTextHash(embeddingText),
-    embeddedAt: new Date(),
-  };
+  try {
+    const embedding = await embeddingGenerator(embeddingText);
+    return {
+      knowledgeEmbedding: {
+        embedding,
+        embeddingModel: EMBEDDING_MODEL,
+        embeddingVersion: EMBEDDING_VERSION,
+        embeddingTextHash: getEmbeddingTextHash(embeddingText),
+        embeddedAt: new Date(),
+      },
+    };
+  } catch (error) {
+    console.warn(
+      "Diagramly local embedding generation failed:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
+    return {
+      knowledgeEmbedding: null,
+      // Keep this deliberately non-sensitive: errors can contain local paths or URLs.
+      error: "Local embedding generation failed. Retry collection or run the embedding backfill.",
+    };
+  }
 }
