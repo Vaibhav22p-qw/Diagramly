@@ -8,15 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "test:knowledge": "tsx --test tests/knowledge/phase-2-2.test.ts",
+    "test:generation": "tsx --test tests/generation/phase-3.test.ts",
     "knowledge:backfill": "tsx scripts/backfill-knowledge-embeddings.ts"
   },
   "dependencies": {
-    "@editorjs/checklist": "^1.6.0",
-    "@editorjs/editorjs": "^2.29.0",
-    "@editorjs/header": "^2.8.1",
-    "@editorjs/list": "^1.9.0",
-    "@editorjs/paragraph": "^2.11.3",
-    "@editorjs/warning": "^1.4.0",
     "@huggingface/transformers": "^4.2.0",
     "@liveblocks/client": "^3.22.0",
     "@liveblocks/node": "^3.22.0",

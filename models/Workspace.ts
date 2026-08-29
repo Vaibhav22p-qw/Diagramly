@@ -36,6 +36,17 @@ const WorkspaceSchema = new Schema(
         ref: "User",
       },
     ],
+
+    document: {
+      version: { type: Number, default: 1 },
+      title: { type: String, default: "Untitled" },
+      author: { type: String, default: "Unknown" },
+      content: { type: [Schema.Types.Mixed], default: [] },
+      metadata: {
+        wordCount: { type: Number, default: 0 },
+        characterCount: { type: Number, default: 0 },
+      },
+    },
   },
   {
     timestamps: true,

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./WorkspaceHeader";
 import { RoomProvider } from "@liveblocks/react";
+import DashboardView from "@/components/dashboard/DashboardView";
 
 const Compiler = nextDynamic(() => import("./Compiler"), {
   ssr: false,
@@ -21,6 +22,9 @@ interface WorkspaceProps {
   workspaceId?: string;
 }
 
+export type WorkspacePanel = "document" | "compiler" | "canvas";
+export type PanelMode = "two" | "three";
+
 interface WorkspaceResponse {
   success?: boolean;
   message?: string;
@@ -31,12 +35,11 @@ interface WorkspaceResponse {
 }
 
 function Workspace({ workspaceId }: WorkspaceProps) {
-  // -----------------------------
-  // Panel visibility
-  // -----------------------------
-  const [showDocument, setShowDocument] = useState(true);
-  const [showCompiler, setShowCompiler] = useState(false);
-  const [showCanvas, setShowCanvas] = useState(true);
+  // Workspace owns the only panel state. Components remain mounted when hidden.
+  const [openPanels, setOpenPanels] = useState<Record<WorkspacePanel, boolean>>({ document: true, compiler: false, canvas: false });
+  const [recentPanels, setRecentPanels] = useState<WorkspacePanel[]>(["document"]);
+  const [panelMode, setPanelMode] = useState<PanelMode>("two");
+  const [showDashboard, setShowDashboard] = useState(false);
 
   // -----------------------------
   // Live collaboration
@@ -47,6 +50,9 @@ function Workspace({ workspaceId }: WorkspaceProps) {
   // Workspace state
   // -----------------------------
   const [fileName, setFileName] = useState("Untitled");
+  const [documentSaveTrigger, setDocumentSaveTrigger] = useState(0);
+  const documentSaveResolver = useRef<((success: boolean) => void) | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState<string | null>(
     null
@@ -152,55 +158,85 @@ function Workspace({ workspaceId }: WorkspaceProps) {
     };
   }, [workspaceId]);
 
-  // -----------------------------
-  // Count visible panels
-  // -----------------------------
-  const visiblePanels = [
-    showDocument,
-    showCompiler,
-    showCanvas,
-  ].filter(Boolean).length;
+  const saveDocument = useCallback(() => new Promise<boolean>((resolve) => {
+    documentSaveResolver.current = resolve;
+    setDocumentSaveTrigger((value) => value + 1);
+  }), []);
 
-  // -----------------------------
-  // Grid layout
-  // -----------------------------
-  const gridColumns =
-    visiblePanels === 1
-      ? "grid-cols-1"
-      : visiblePanels === 2
-      ? "grid-cols-2"
-      : "grid-cols-3";
+  const handleDocumentSaveResult = useCallback((success: boolean) => {
+    documentSaveResolver.current?.(success);
+    documentSaveResolver.current = null;
+  }, []);
 
-  // -----------------------------
-  // Workspace content
-  // -----------------------------
+  const saveOpenPanels = useCallback(async () => {
+    // Document is the only panel with a persistence API today. Compiler and Canvas
+    // remain mounted, preserving their state rather than resetting it on a hide.
+    const success = openPanels.document ? await saveDocument() : true;
+    if (!success) setSaveError("Document could not be saved. Your current workspace remains open.");
+    else setSaveError(null);
+    return success;
+  }, [openPanels.document, saveDocument]);
+
+  const openPanel = useCallback(async (panel: WorkspacePanel) => {
+    const currentlyOpen = (Object.keys(openPanels) as WorkspacePanel[]).filter((key) => openPanels[key]);
+    const limit = panelMode === "two" ? 2 : 3;
+    const oldest = currentlyOpen.length >= limit ? recentPanels.find((key) => openPanels[key]) : undefined;
+    if (oldest === "document" && !(await saveDocument())) {
+      setSaveError("Document could not be saved. The panel change was cancelled.");
+      return;
+    }
+    setShowDashboard(false);
+    setOpenPanels((current) => {
+      if (current[panel]) return current;
+      const next = { ...current, [panel]: true };
+      if (oldest) {
+        if (oldest) next[oldest] = false;
+      }
+      return next;
+    });
+    setRecentPanels((current) => [...current.filter((key) => key !== panel), panel]);
+  }, [openPanels, panelMode, recentPanels, saveDocument]);
+
+  const handlePanelToggle = useCallback(async (panel: WorkspacePanel) => {
+    if (showDashboard) { await openPanel(panel); return; }
+    if (openPanels[panel]) {
+      if (panel === "document" && !(await saveDocument())) { setSaveError("Document could not be saved. It remains visible."); return; }
+      setOpenPanels((current) => ({ ...current, [panel]: false }));
+      return;
+    }
+    await openPanel(panel);
+  }, [openPanels, openPanel, saveDocument, showDashboard]);
+
+  const handlePanelModeChange = useCallback(async (mode: PanelMode) => {
+    if (mode === "two" && openPanels.document && (Object.values(openPanels).filter(Boolean).length > 2)) {
+      const keep = recentPanels.filter((panel) => openPanels[panel]).slice(-2);
+      if (!keep.includes("document") && !(await saveDocument())) { setSaveError("Document could not be saved. Panel mode was not changed."); return; }
+    }
+    setPanelMode(mode);
+    if (mode === "two") {
+      setOpenPanels((current) => {
+        const keep = recentPanels.filter((panel) => current[panel]).slice(-2);
+        return { document: keep.includes("document"), compiler: keep.includes("compiler"), canvas: keep.includes("canvas") };
+      });
+    }
+  }, [openPanels, recentPanels, saveDocument]);
+
+  const handleDashboard = useCallback(async () => {
+    if (!(await saveOpenPanels())) return;
+    setShowDashboard(true);
+  }, [saveOpenPanels]);
+
+  const visiblePanelCount = (Object.keys(openPanels) as WorkspacePanel[]).filter((panel) => openPanels[panel]).length;
+  const gridColumns = visiblePanelCount <= 1 ? "grid-cols-1" : visiblePanelCount === 2 ? "md:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3";
+
   const workspaceContent = (
-    <div
-      className={`h-[calc(100vh-4rem)] grid ${gridColumns}`}
-    >
-      {/* Document Editor */}
-      {showDocument && (
-        <div
-          id="editor-container"
-          className="min-w-0 overflow-auto border-r"
-        >
-          <Editor />
-        </div>
-      )}
-
-      {/* Compiler */}
-      {showCompiler && (
-        <div className="min-w-0 overflow-hidden border-r">
-          <Compiler />
-        </div>
-      )}
-
-      {/* Canvas */}
-      {showCanvas && (
-        <div className="min-w-0 overflow-hidden">
-          <Canvas />
-        </div>
-      )}
+    <div className="h-[calc(100vh-4rem)] min-w-0 overflow-hidden">
+      {showDashboard && <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950"><DashboardView /></div>}
+      <div className={`h-full grid ${gridColumns} ${showDashboard ? "hidden" : ""}`}>
+        <div id="editor-container" className={`min-w-0 overflow-auto ${openPanels.document ? "block" : "hidden"}`}><Editor workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} /></div>
+        <div className={`min-w-0 overflow-hidden ${openPanels.compiler ? "block" : "hidden"}`}><Compiler /></div>
+        <div className={`min-w-0 overflow-hidden ${openPanels.canvas ? "block" : "hidden"}`}><Canvas /></div>
+      </div>
     </div>
   );
 
@@ -271,20 +307,18 @@ function Workspace({ workspaceId }: WorkspaceProps) {
         <WorkspaceHeader
           fileName={fileName}
           setFileName={setFileName}
-          onSave={() => {
-            console.log(
-              "Save feature coming soon"
-            );
-          }}
+          onSave={() => { void saveOpenPanels(); }}
           isLive={isLive}
           setIsLive={setIsLive}
-          showDocument={showDocument}
-          setShowDocument={setShowDocument}
-          showCompiler={showCompiler}
-          setShowCompiler={setShowCompiler}
-          showCanvas={showCanvas}
-          setShowCanvas={setShowCanvas}
+          openPanels={openPanels}
+          showDashboard={showDashboard}
+          panelMode={panelMode}
+          onPanelToggle={handlePanelToggle}
+          onPanelModeChange={handlePanelModeChange}
+          onDashboard={handleDashboard}
         />
+
+        {saveError && <div role="alert" className="absolute left-1/2 top-20 z-[60] -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg">{saveError}</div>}
 
         {workspaceContent}
       </div>

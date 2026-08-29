@@ -1,266 +1,66 @@
-"use client"
+"use client";
 
-import React, { useEffect, useRef, useState } from "react"
-import EditorJS from "@editorjs/editorjs"
-// @ts-ignore
-import Header from "@editorjs/header"
-// @ts-ignore
-import List from "@editorjs/list"
-// @ts-ignore
-import Checklist from "@editorjs/checklist"
-// @ts-ignore
-import Paragraph from "@editorjs/paragraph"
-// @ts-ignore
-import Warning from "@editorjs/warning"
-import { Sparkles, Loader2, X } from "lucide-react"
+import React, { ClipboardEvent, DragEvent, useCallback, useEffect, useRef, useState } from "react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, Code, FileUp, Highlighter, Italic, Link2, List, ListOrdered, Redo2, Strikethrough, Underline, Undo2, Upload, X } from "lucide-react";
 
-const rawDocument = {
-  time: Date.now(),
-  blocks: [
-    {
-      type: "header",
-      data: {
-        text: "Start writing here...",
-        level: 2,
-      },
-    },
-  ],
-  version: "2.8.1",
+type Inline = { text: string; bold?: boolean; italic?: boolean; underline?: boolean; strike?: boolean; code?: boolean; highlight?: boolean; href?: string };
+type Block = { type: "paragraph" | "heading" | "bulletList" | "orderedList"; level?: 1 | 2 | 3; align?: "left" | "center" | "right" | "justify"; children: Inline[] };
+export type DiagramlyDocument = { version: 1; title: string; author: string; content: Block[]; metadata: { wordCount: number; characterCount: number } };
+const empty = (): DiagramlyDocument => ({ version: 1, title: "Untitled", author: "Unknown", content: [{ type: "paragraph", children: [] }], metadata: { wordCount: 0, characterCount: 0 } });
+
+function readInline(node: Node, marks: Omit<Inline, "text"> = {}): Inline[] {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ? [{ text: node.textContent, ...marks }] : [];
+  if (!(node instanceof HTMLElement)) return [];
+  const tag = node.tagName.toLowerCase();
+  const href = node.getAttribute("href") || "";
+  const next = { ...marks, bold: marks.bold || ["b", "strong"].includes(tag), italic: marks.italic || ["i", "em"].includes(tag), underline: marks.underline || tag === "u", strike: marks.strike || ["s", "strike", "del"].includes(tag), code: marks.code || tag === "code", highlight: marks.highlight || tag === "mark", href: tag === "a" && /^https?:\/\//i.test(href) ? href : marks.href };
+  return Array.from(node.childNodes).flatMap((child) => readInline(child, next));
+}
+function toDocument(canvas: HTMLElement, title: string, author: string): DiagramlyDocument {
+  const content: Block[] = Array.from(canvas.children).flatMap((element): Block[] => {
+    const tag = element.tagName.toLowerCase(); const textAlign = (element as HTMLElement).style.textAlign;
+    const align = (["left", "center", "right", "justify"].includes(textAlign) ? textAlign : "left") as Block["align"];
+    if (tag === "ul" || tag === "ol") return Array.from(element.children).map((li) => ({ type: tag === "ul" ? "bulletList" as const : "orderedList" as const, align, children: Array.from(li.childNodes).flatMap((node) => readInline(node)) }));
+    return [{ type: /^h[1-3]$/.test(tag) ? "heading" as const : "paragraph" as const, level: /^h[1-3]$/.test(tag) ? Number(tag[1]) as 1 | 2 | 3 : undefined, align, children: Array.from(element.childNodes).flatMap((node) => readInline(node)) }];
+  });
+  const valid = content.length ? content : empty().content; const plain = valid.flatMap((block) => block.children.map((inline) => inline.text)).join(" ");
+  return { version: 1, title: title.trim() || "Untitled", author: author.trim() || "Unknown", content: valid, metadata: { characterCount: plain.length, wordCount: plain.trim() ? plain.trim().split(/\s+/).length : 0 } };
+}
+function addInline(parent: HTMLElement, inline: Inline) {
+  const node = document.createElement(inline.href ? "a" : "span"); node.textContent = inline.text;
+  if (inline.href) { node.setAttribute("href", inline.href); node.setAttribute("target", "_blank"); node.setAttribute("rel", "noopener noreferrer"); }
+  if (inline.bold) node.style.fontWeight = "700"; if (inline.italic) node.style.fontStyle = "italic"; if (inline.underline) node.style.textDecoration += " underline"; if (inline.strike) node.style.textDecoration += " line-through"; if (inline.code) { node.style.fontFamily = "monospace"; node.style.background = "#f1f5f9"; } if (inline.highlight) node.style.background = "#fef08a"; parent.appendChild(node);
+}
+function render(canvas: HTMLElement, data: DiagramlyDocument) {
+  canvas.replaceChildren(); let list: HTMLElement | null = null; let currentType = "";
+  data.content.forEach((block) => { const isList = block.type === "bulletList" || block.type === "orderedList";
+    if (isList) { if (!list || currentType !== block.type) { list = document.createElement(block.type === "bulletList" ? "ul" : "ol"); currentType = block.type; canvas.appendChild(list); } const li = document.createElement("li"); li.style.textAlign = block.align || "left"; block.children.forEach((inline) => addInline(li, inline)); list.appendChild(li); return; }
+    list = null; currentType = ""; const node = document.createElement(block.type === "heading" ? `h${block.level || 2}` : "p"); node.style.textAlign = block.align || "left"; if (!block.children.length) node.appendChild(document.createElement("br")); block.children.forEach((inline) => addInline(node, inline)); canvas.appendChild(node);
+  });
+}
+function normalize(value: unknown): DiagramlyDocument {
+  if (value && typeof value === "object" && "version" in value && "content" in value) return value as DiagramlyDocument;
+  const legacy = value as { blocks?: Array<{ type?: string; data?: { text?: string; level?: number; items?: string[] } }> } | undefined;
+  if (!legacy?.blocks) return empty();
+  const content = legacy.blocks.flatMap((block): Block[] => { const text = block.data?.text?.replace(/<[^>]*>/g, "") || ""; if (block.type === "list" || block.type === "checklist") return (block.data?.items || [text]).map((item) => ({ type: "bulletList" as const, children: [{ text: item }] })); return [{ type: block.type === "header" ? "heading" as const : "paragraph" as const, level: block.type === "header" ? Math.min(Math.max(block.data?.level || 2, 1), 3) as 1 | 2 | 3 : undefined, children: [{ text }] }]; });
+  return { ...empty(), content: content.length ? content : empty().content };
 }
 
-function Editor({ onSaveTrigger }: { onSaveTrigger?: any }) {
-  const ref = useRef<EditorJS | null>(null)
-
-  const [aiPrompt, setAiPrompt] = useState("")
-  const [aiLoading, setAiLoading] = useState(false)
-  const [isPopupOpen, setIsPopupOpen] = useState(false)
-
-  useEffect(() => {
-    initEditor()
-
-    return () => {
-      if (ref.current && ref.current.destroy) {
-        ref.current.destroy()
-        ref.current = null
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (onSaveTrigger) {
-      onSaveDocument()
-    }
-  }, [onSaveTrigger])
-
-  const initEditor = () => {
-    if (ref.current) return
-
-    const editor = new EditorJS({
-      holder: "editorjs",
-      data: rawDocument,
-      tools: {
-        header: {
-          class: Header as any,
-          shortcut: "CMD+SHIFT+H",
-          config: {
-            placeholder: "Enter a Header",
-          },
-        },
-        list: {
-          class: List as any,
-          inlineToolbar: true,
-        },
-        checklist: {
-          class: Checklist as any,
-          inlineToolbar: true,
-        },
-        paragraph: Paragraph as any,
-        warning: Warning as any,
-      },
-    })
-
-    ref.current = editor
-  }
-
-  const onSaveDocument = () => {
-    if (ref.current) {
-      ref.current
-        .save()
-        .then((outputData) => {
-          console.log("Saved document:", outputData)
-        })
-        .catch((error) => {
-          console.log("Saving failed:", error)
-        })
-    }
-  }
-
-  // --------------------------------
-  // BASIC OWN AI
-  // --------------------------------
-
-  const generateBasicAIResponse = (prompt: string) => {
-    const text = prompt.toLowerCase()
-
-    if (text.includes("summarize") || text.includes("summary")) {
-      return "This document contains the main ideas provided by the user. The content can be organized into clear sections, highlighting the most important information while removing unnecessary details."
-    }
-
-    if (
-      text.includes("introduction") ||
-      text.includes("intro")
-    ) {
-      return "Introduction\n\nThis section introduces the topic, explains its importance, and provides the necessary background information for understanding the subject."
-    }
-
-    if (
-      text.includes("conclusion") ||
-      text.includes("conclude")
-    ) {
-      return "Conclusion\n\nIn conclusion, the discussed concepts provide a clear understanding of the topic. The key ideas can be applied to develop practical and effective solutions."
-    }
-
-    if (
-      text.includes("project") ||
-      text.includes("software")
-    ) {
-      return "Project Overview\n\nThis project focuses on developing a practical software solution that improves productivity, collaboration, and user experience through modern technologies."
-    }
-
-    if (
-      text.includes("features") ||
-      text.includes("feature")
-    ) {
-      return "Key Features\n\n• User-friendly interface\n• Real-time collaboration\n• Document editing\n• Intelligent assistance\n• Secure data management"
-    }
-
-    if (
-      text.includes("paragraph") ||
-      text.includes("write")
-    ) {
-      return "This paragraph provides a clear and structured explanation of the requested topic. The information is presented in a simple and readable manner so that users can easily understand the main concept."
-    }
-
-    return `${prompt}`
-  }
-
-  const handleAI = async () => {
-    if (!aiPrompt.trim()) {
-      alert("Please enter a prompt.")
-      return
-    }
-
-    if (!ref.current) {
-      alert("Editor is not ready yet.")
-      return
-    }
-
-    try {
-      setAiLoading(true)
-
-      const generatedText = generateBasicAIResponse(aiPrompt)
-
-      await ref.current.isReady
-
-      ref.current.blocks.insert("paragraph", {
-        text: generatedText.replace(/\n/g, "<br>"),
-      })
-
-      setAiPrompt("")
-      setIsPopupOpen(false)
-    } catch (error) {
-      console.error("AI generation failed:", error)
-    } finally {
-      setAiLoading(false)
-    }
-  }
-  
-
-return (
-  <div className="relative w-full">
-    {/* EDITOR */}
-    <div
-      id="editorjs"
-      className="min-h-[500px] w-full"
-    />
-
-    {/* FLOATING AI CHAT/POPUP */}
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-      {/* POPUP BOX */}
-      {isPopupOpen && (
-        <div className="mb-3 w-80 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl transition-all sm:w-96">
-          
-          {/* HEADER */}
-          <div className="flex items-center justify-between border-b border-gray-100 bg-blue-50 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-sm">
-                <Sparkles className="h-3.5 w-3.5" />
-              </div>
-
-              <h3 className="text-xs font-semibold leading-none text-gray-900">
-                Diagramly AI
-              </h3>
-            </div>
-
-            <button
-              onClick={() => setIsPopupOpen(false)}
-              className="text-gray-400 transition hover:text-gray-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* INPUT */}
-          <div className="p-3">
-            <textarea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  handleAI()
-                }
-              }}
-              placeholder="Ask Diagramly AI to write something..."
-              rows={3}
-              className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
-            />
-
-            {/* GENERATE BUTTON */}
-            <div className="mt-2 flex justify-end">
-              <button
-                onClick={handleAI}
-                disabled={aiLoading}
-                className="flex h-9 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {aiLoading ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Generate
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* FLOATING AI BUTTON */}
-      <button
-        onClick={() => setIsPopupOpen(!isPopupOpen)}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
-        title="Open AI Assistant"
-      >
-        <Sparkles className="h-6 w-6" />
-      </button>
-    </div>
-  </div>
-)
+export default function Editor({ workspaceId, onSaveTrigger, onSaveComplete }: { workspaceId: string; onSaveTrigger?: number; onSaveComplete?: (success: boolean) => void }) {
+  const canvas = useRef<HTMLDivElement>(null); const [title, setTitle] = useState("Untitled"); const [author, setAuthor] = useState("Unknown"); const [status, setStatus] = useState<"loading" | "saved" | "saving" | "unsaved" | "error">("loading"); const [uploadOpen, setUploadOpen] = useState(false); const [urlOpen, setUrlOpen] = useState(false); const [url, setUrl] = useState(""); const [importError, setImportError] = useState("");
+  const save = useCallback(async () => { if (!canvas.current) return false; setStatus("saving"); try { const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document: toDocument(canvas.current, title, author) }) }); if (!response.ok) throw new Error(); setStatus("saved"); return true; } catch { setStatus("error"); return false; } }, [author, title, workspaceId]);
+  useEffect(() => { if (onSaveTrigger) void save().then((success) => onSaveComplete?.(success)); }, [onSaveTrigger, save, onSaveComplete]);
+  useEffect(() => { let alive = true; (async () => { try { const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}`, { cache: "no-store" }); const result = await response.json(); if (!alive) return; const data = normalize(result.workspace?.document); setTitle(data.title); setAuthor(data.author); if (canvas.current) render(canvas.current, data); setStatus("saved"); } catch { if (alive) setStatus("error"); } })(); return () => { alive = false; }; }, [workspaceId]);
+  useEffect(() => { const timer = window.setTimeout(() => { if (status === "unsaved") void save(); }, 1200); return () => window.clearTimeout(timer); }, [status, save]);
+  const command = (name: string, value?: string) => { canvas.current?.focus(); document.execCommand(name, false, value); setStatus("unsaved"); };
+  const importText = (text: string) => { if (!canvas.current) return; canvas.current.replaceChildren(...text.replace(/\r\n/g, "\n").split(/\n{2,}/).map((part) => { const p = document.createElement("p"); p.textContent = part; return p; })); setStatus("unsaved"); };
+  const readFile = async (file: File) => { if (file.size > 10 * 1024 * 1024) return setImportError("Files must be 10MB or smaller."); if (!/\.(txt|md|csv|json)$/i.test(file.name)) return setImportError("This workspace has no file-conversion backend. Import .txt, .md, .csv, or .json files."); importText(await file.text()); setUploadOpen(false); };
+  const importUrl = async () => { try { const target = new URL(url); if (!/^https?:$/.test(target.protocol)) throw new Error(); const response = await fetch(target.href); if (!response.ok) throw new Error(); const source = await response.text(); importText(new DOMParser().parseFromString(source, "text/html").body.textContent || ""); setUrlOpen(false); } catch { setImportError("Could not import this URL. The site may block browser requests."); } };
+  const tool = "flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-950";
+  return <section className="min-h-full bg-slate-50 p-3 sm:p-5"><div className="mx-auto max-w-5xl space-y-4">
+    <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-slate-600">Document title<input value={title} onChange={(e) => { setTitle(e.target.value); setStatus("unsaved"); }} className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label><label className="text-xs font-semibold text-slate-600">Document author<input value={author} onChange={(e) => { setAuthor(e.target.value); setStatus("unsaved"); }} className="mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label></div>
+    <div className="flex flex-wrap gap-2"><button onClick={() => setUploadOpen(true)} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50"><FileUp className="h-4 w-4" />File upload</button><button onClick={() => setUploadOpen(true)} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50"><Upload className="h-4 w-4" />Bulk upload</button><button onClick={() => setUrlOpen(true)} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium hover:bg-slate-50"><Link2 className="h-4 w-4" />Import from URL</button><span className="ml-auto self-center text-xs text-slate-500">{status === "saving" ? "Saving…" : status === "saved" ? "Saved" : status === "unsaved" ? "Unsaved changes" : status === "error" ? "Save failed" : "Loading…"}</span></div>
+    <div className="flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white p-1 shadow-sm"><select aria-label="Text style" onChange={(e) => command("formatBlock", e.target.value)} className="h-8 shrink-0 rounded-md border-0 bg-transparent px-2 text-xs outline-none"><option value="p">Text</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select><span className="mx-1 border-l" /><button aria-label="Bold" onClick={() => command("bold")} className={tool}><Bold className="h-4 w-4" /></button><button aria-label="Italic" onClick={() => command("italic")} className={tool}><Italic className="h-4 w-4" /></button><button aria-label="Underline" onClick={() => command("underline")} className={tool}><Underline className="h-4 w-4" /></button><button aria-label="Strikethrough" onClick={() => command("strikeThrough")} className={tool}><Strikethrough className="h-4 w-4" /></button><button aria-label="Highlight" onClick={() => command("hiliteColor", "#fef08a")} className={tool}><Highlighter className="h-4 w-4" /></button><button aria-label="Bullet list" onClick={() => command("insertUnorderedList")} className={tool}><List className="h-4 w-4" /></button><button aria-label="Ordered list" onClick={() => command("insertOrderedList")} className={tool}><ListOrdered className="h-4 w-4" /></button><button aria-label="Code" onClick={() => command("formatBlock", "pre")} className={tool}><Code className="h-4 w-4" /></button><button aria-label="Add link" onClick={() => { const value = window.prompt("Link URL"); if (value && /^https?:\/\//i.test(value)) command("createLink", value); }} className={tool}><Link2 className="h-4 w-4" /></button><span className="mx-1 border-l" /><button aria-label="Align left" onClick={() => command("justifyLeft")} className={tool}><AlignLeft className="h-4 w-4" /></button><button aria-label="Align center" onClick={() => command("justifyCenter")} className={tool}><AlignCenter className="h-4 w-4" /></button><button aria-label="Align right" onClick={() => command("justifyRight")} className={tool}><AlignRight className="h-4 w-4" /></button><button aria-label="Justify" onClick={() => command("justifyFull")} className={tool}><AlignJustify className="h-4 w-4" /></button><span className="mx-1 border-l" /><button aria-label="Undo" onClick={() => command("undo")} className={tool}><Undo2 className="h-4 w-4" /></button><button aria-label="Redo" onClick={() => command("redo")} className={tool}><Redo2 className="h-4 w-4" /></button></div>
+    <div ref={canvas} contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="Paste your text here (min. 500 characters)" onInput={() => setStatus("unsaved")} onPaste={(event: ClipboardEvent<HTMLDivElement>) => { event.preventDefault(); document.execCommand("insertText", false, event.clipboardData.getData("text/plain")); setStatus("unsaved"); }} className="min-h-[520px] rounded-xl border border-slate-200 bg-white p-6 text-[15px] leading-7 text-slate-800 shadow-sm outline-none empty:before:pointer-events-none empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)] sm:p-10 [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:mb-2 [&_h3]:text-xl [&_h3]:font-semibold [&_p]:mb-4 [&_pre]:mb-4 [&_pre]:rounded-md [&_pre]:bg-slate-100 [&_pre]:p-3 [&_pre]:font-mono [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6" />
+  </div>{uploadOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 p-4"><div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Upload file</h2><button onClick={() => setUploadOpen(false)}><X className="h-5 w-5" /></button></div><label onDrop={(e: DragEvent<HTMLLabelElement>) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) void readFile(file); }} onDragOver={(e) => e.preventDefault()} className="mt-5 flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 px-4 text-center"><Upload className="mb-3 h-8 w-8 text-blue-600" /><span className="text-sm font-medium">Drop file here or click to browse</span><span className="mt-2 text-xs text-slate-500">.txt, .md, .csv, .json up to 10MB</span><input type="file" className="sr-only" accept=".txt,.md,.csv,.json" onChange={(e) => { const file = e.target.files?.[0]; if (file) void readFile(file); }} /></label>{importError && <p className="mt-3 text-xs text-red-600">{importError}</p>}<p className="mt-4 text-xs text-slate-500">Imported text may differ from the original formatting. Please review before saving.</p></div></div>}{urlOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 p-4"><div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl"><div className="flex justify-between"><h2 className="text-lg font-semibold">Import from URL</h2><button onClick={() => setUrlOpen(false)}><X className="h-5 w-5" /></button></div><input autoFocus value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://example.com" className="mt-5 h-10 w-full rounded-lg border px-3 text-sm outline-none focus:border-blue-500" />{importError && <p className="mt-3 text-xs text-red-600">{importError}</p>}<div className="mt-5 flex justify-end gap-2"><button onClick={() => setUrlOpen(false)} className="rounded-lg border px-3 py-2 text-sm">Cancel</button><button onClick={() => void importUrl()} className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white">Import URL</button></div></div></div>}</section>;
 }
-
-export default Editor

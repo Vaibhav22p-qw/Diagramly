@@ -54,6 +54,7 @@ export default function Compiler() {
   const [showAI, setShowAI] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [aiResponse, setAiResponse] = useState("");
+  const [generationSource, setGenerationSource] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [knowledgeId, setKnowledgeId] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export default function Compiler() {
   const [successfulExecutionPrompt, setSuccessfulExecutionPrompt] =
     useState<string | null>(null);
   const [isLearning, setIsLearning] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
 
   const [terminalEntries, setTerminalEntries] =
     useState<TerminalEntry[]>([]);
@@ -114,6 +116,7 @@ export default function Compiler() {
     setLanguageKey(key);
     setCode(LANGUAGES[key].defaultCode);
     setAiResponse("");
+    setGenerationSource(null);
     setSuccessfulExecutionId(null);
     setCodePrompt(null);
     setRetrievedPrompt(null);
@@ -492,52 +495,26 @@ const sendRuntimeInput = () => {
 
     setIsGenerating(true);
     setAiResponse("");
+    setGenerationSource(null);
     setKnowledgeId(null);
     setRetrievedPrompt(null);
 
     try {
-      const response = await fetch(
-        `/api/knowledge?q=${encodeURIComponent(
-          originalPrompt
-        )}&language=${encodeURIComponent(
-          languageKey
-        )}`
-      );
+      const response = await fetch("/api/code-generation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: originalPrompt, language: languageKey }),
+      });
 
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        throw new Error(
-          data.message || "Knowledge retrieval failed"
-        );
-      }
-
-      const bestResult = data.results?.[0];
-
-      if (!bestResult) {
-        setAiResponse(
-          "// Diagramly has not learned this concept yet.\n// Try another request or teach Diagramly by adding a successful solution."
-        );
+      if (!data.success) {
+        setAiResponse(data.notes?.join("\n") || "// No safe deterministic generation path is available.");
         return;
       }
-
-      setAiResponse(bestResult.code || "");
-      setKnowledgeId(bestResult.id || null);
+      setAiResponse(data.code || "");
+      setGenerationSource(data.provenance?.label || "Diagramly generation");
       setRetrievedPrompt(originalPrompt);
-
-      // Tell Diagramly this knowledge was retrieved.
-      if (bestResult.id) {
-        await fetch("/api/knowledge", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            knowledgeId: bestResult.id,
-            action: "retrieved",
-          }),
-        });
-      }
     } catch (error) {
       console.error(
         "Diagramly Knowledge Engine error:",
@@ -545,11 +522,32 @@ const sendRuntimeInput = () => {
       );
 
       setAiResponse(
-        "// Unable to retrieve learned knowledge right now."
+        "// Unable to generate code right now."
       );
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleRepair = async () => {
+    if (!compilerError || isRepairing) return;
+    setIsRepairing(true);
+    setAiResponse("");
+    try {
+      const response = await fetch("/api/code-generation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: prompt || "repair code", language: languageKey, currentCode: code, diagnostics: compilerError, executionOutput: output, repair: true }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.notes?.join(" ") || "No safe repair is available.");
+      setAiResponse(data.code);
+      setGenerationSource(data.provenance?.label || "Repaired using compiler feedback");
+      setRetrievedPrompt(prompt || "repair code");
+      setShowAI(true);
+    } catch (error: any) {
+      setTerminalEntries(prev => [...prev, { type: "error", text: error.message || "No safe repair is available." }]);
+    } finally { setIsRepairing(false); }
   };
 
   const handleLearnSuccessfulSolution = async () => {
@@ -776,6 +774,17 @@ const sendRuntimeInput = () => {
     </>
   )}
 </button>
+          {compileStatus === "error" && compilerError && (
+            <button
+              type="button"
+              onClick={handleRepair}
+              disabled={isRepairing}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border bg-amber-600 hover:bg-amber-500 border-amber-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Create a preview using safe compiler-feedback repairs"
+            >
+              <span>{isRepairing ? "Repairing..." : "Repair Code"}</span>
+            </button>
+          )}
           {successfulExecutionId && (
             <button
               type="button"
@@ -967,6 +976,11 @@ const sendRuntimeInput = () => {
                 <span className={`text-[11px] font-medium ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                   AI Output Preview
                 </span>
+                {generationSource && (
+                  <span className={`text-[10px] ${isDark ? "text-indigo-300" : "text-indigo-600"}`}>
+                    {generationSource}
+                  </span>
+                )}
               </div>
 
               <pre className={`flex-1 overflow-auto rounded-lg border p-3 text-[11px] font-mono leading-relaxed whitespace-pre-wrap ${

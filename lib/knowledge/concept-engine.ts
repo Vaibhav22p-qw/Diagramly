@@ -12,6 +12,13 @@ type ConceptRule = {
 };
 
 const CONCEPT_RULES: ConceptRule[] = [
+  { concept: "palindrome", keywords: ["palindrome"] },
+  { concept: "factorial", keywords: ["factorial"] },
+  { concept: "fibonacci", keywords: ["fibonacci", "fibonacci series"] },
+  { concept: "prime", keywords: ["prime number", "check prime", "prime"] },
+  { concept: "array", keywords: ["array", "arrays"] },
+  { concept: "string", keywords: ["string", "strings"] },
+  { concept: "basic-loops", keywords: ["for loop", "while loop", "basic loop", "loops"] },
   {
     concept: "binary-search",
     keywords: [

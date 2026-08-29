@@ -13,6 +13,7 @@ import React, { useState } from "react";
 import OnlineUsers from "./OnlineUsers";
 import ProfileMenu from "@/components/menu";
 import ViewSwitcher from "./ViewSwitcher";
+import type { PanelMode, WorkspacePanel } from "./Workspace";
 
 function WorkspaceHeader({
   onSave,
@@ -20,12 +21,12 @@ function WorkspaceHeader({
   setFileName,
   isLive,
   setIsLive,
-  showDocument,
-  setShowDocument,
-  showCompiler,
-  setShowCompiler,
-  showCanvas,
-  setShowCanvas,
+  openPanels,
+  showDashboard,
+  panelMode,
+  onPanelToggle,
+  onPanelModeChange,
+  onDashboard,
 }: {
   onSave: () => void;
   fileName: string;
@@ -33,14 +34,12 @@ function WorkspaceHeader({
   isLive: boolean;
   setIsLive: React.Dispatch<React.SetStateAction<boolean>>;
 
-  showDocument: boolean;
-  setShowDocument: React.Dispatch<React.SetStateAction<boolean>>;
-
-  showCompiler: boolean;
-  setShowCompiler: React.Dispatch<React.SetStateAction<boolean>>;
-
-  showCanvas: boolean;
-  setShowCanvas: React.Dispatch<React.SetStateAction<boolean>>;
+  openPanels: Record<WorkspacePanel, boolean>;
+  showDashboard: boolean;
+  panelMode: PanelMode;
+  onPanelToggle: (panel: WorkspacePanel) => void;
+  onPanelModeChange: (mode: PanelMode) => void;
+  onDashboard: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
@@ -126,12 +125,12 @@ function WorkspaceHeader({
       {/* CENTER — VIEW SWITCHER */}
       <div className="flex flex-1 justify-center px-1 sm:px-4">
         <ViewSwitcher
-          showDocument={showDocument}
-          setShowDocument={setShowDocument}
-          showCompiler={showCompiler}
-          setShowCompiler={setShowCompiler}
-          showCanvas={showCanvas}
-          setShowCanvas={setShowCanvas}
+          openPanels={openPanels}
+          showDashboard={showDashboard}
+          panelMode={panelMode}
+          onPanelToggle={onPanelToggle}
+          onPanelModeChange={onPanelModeChange}
+          onDashboard={onDashboard}
         />
       </div>
 
