@@ -39,6 +39,26 @@ const LANGUAGES: Record<
   },
 };
 
+async function readJsonResponse(response: Response): Promise<Record<string, any>> {
+  const text = await response.text();
+  if (!text.trim()) {
+    return {
+      success: false,
+      message: `The server returned an empty response (HTTP ${response.status}).`,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : { success: false, message: "The server returned an invalid response." };
+  } catch {
+    return {
+      success: false,
+      message: `The server returned an invalid response (HTTP ${response.status}).`,
+    };
+  }
+}
+
 export default function Compiler() {
   const jdoodleSessionRef = useRef<{
     sendInput: (input: string) => void;
@@ -67,6 +87,7 @@ export default function Compiler() {
   >("idle");
   const [successfulExecutionId, setSuccessfulExecutionId] =
     useState<string | null>(null);
+  const learnTrackingRef = useRef(false);
   const [codePrompt, setCodePrompt] = useState<string | null>(null);
   const [retrievedPrompt, setRetrievedPrompt] = useState<string | null>(null);
   const [successfulExecutionPrompt, setSuccessfulExecutionPrompt] =
@@ -92,6 +113,7 @@ export default function Compiler() {
     setCompilerError("");
     setExitCode(null);
     setCompileStatus("idle");
+    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setSuccessfulExecutionPrompt(null);
   };
@@ -117,6 +139,7 @@ export default function Compiler() {
     setCode(LANGUAGES[key].defaultCode);
     setAiResponse("");
     setGenerationSource(null);
+    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setCodePrompt(null);
     setRetrievedPrompt(null);
@@ -131,6 +154,7 @@ export default function Compiler() {
 
   const handleResetCode = () => {
     setCode(LANGUAGES[languageKey].defaultCode);
+    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setCodePrompt(null);
     setSuccessfulExecutionPrompt(null);
@@ -138,6 +162,7 @@ export default function Compiler() {
 
   const handleCodeChange = (value: string) => {
     setCode(value);
+    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setSuccessfulExecutionPrompt(null);
   };
@@ -150,7 +175,8 @@ const handleRunCode = async () => {
   setCompilerError("");
   setExitCode(null);
   setCompileStatus("idle");
-  setSuccessfulExecutionId(null);
+  learnTrackingRef.current = false;
+    setSuccessfulExecutionId(null);
 
   setTerminalEntries(
     input.trim()
@@ -240,7 +266,8 @@ const handleInteractiveRun = async () => {
   setCompilerError("");
   setExitCode(null);
   setCompileStatus("idle");
-  setSuccessfulExecutionId(null);
+  learnTrackingRef.current = false;
+    setSuccessfulExecutionId(null);
   setSuccessfulExecutionPrompt(null);
   setTerminalEntries([]);
 
@@ -269,6 +296,8 @@ const handleInteractiveRun = async () => {
           "Failed to start program."
       );
     }
+
+    learnTrackingRef.current = data.learnableExecutionTracked === true;
 
     jdoodleSessionRef.current = {
       sendInput: async (input: string) => {
@@ -377,7 +406,11 @@ const handleInteractiveRun = async () => {
           jdoodleSessionRef.current =
             null;
 
-          if (pollData.exitCode === 0) {
+          if (
+            pollData.exitCode === 0 &&
+            learnTrackingRef.current &&
+            pollData.learnableExecutionTracked === true
+          ) {
             setSuccessfulExecutionId(data.sessionId);
             setSuccessfulExecutionPrompt(promptForExecution);
           }
@@ -573,7 +606,7 @@ const sendRuntimeInput = () => {
         }),
       });
 
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok || !data.success || !data.learned) {
         throw new Error(data.message || "Failed to learn solution.");
@@ -586,7 +619,8 @@ const sendRuntimeInput = () => {
           text: "Solution saved to Diagramly knowledge.",
         },
       ]);
-      setSuccessfulExecutionId(null);
+      learnTrackingRef.current = false;
+    setSuccessfulExecutionId(null);
       setSuccessfulExecutionPrompt(null);
     } catch (error: any) {
       setTerminalEntries((prev) => [
@@ -643,7 +677,7 @@ const sendRuntimeInput = () => {
   };
 
   return (
-    <div className="relative h-full w-full bg-slate-950 text-slate-100 flex flex-col font-sans overflow-hidden">
+    <div className="relative h-full w-full bg-slate-50 text-slate-100 flex flex-col font-sans overflow-hidden">
       {/* Top Navigation Header */}
       <header
         className={`h-14 border-b px-4 flex items-center justify-between z-10 select-none transition-colors duration-200 ${
@@ -835,25 +869,51 @@ const sendRuntimeInput = () => {
             isDark ? "bg-slate-950" : "bg-white"
           }`}
         >
-          <Editor
-            height="100%"
-            language={LANGUAGES[languageKey].monacoLang}
-            value={code}
-            onChange={(val) => handleCodeChange(val || "")}
-            theme={isDark ? "vs-dark" : "light"}
-            options={{
-              fontSize: 13.5,
-              fontFamily: "Fira Code, JetBrains Mono, monospace",
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              padding: { top: 16, bottom: 16 },
-              smoothScrolling: true,
-              cursorBlinking: "smooth",
-              lineNumbersMinChars: 3,
-              renderLineHighlight: "all",
-            }}
-          />
+<Editor
+  height="100%"
+  language={LANGUAGES[languageKey].monacoLang}
+  value={code}
+  onChange={(val) => handleCodeChange(val || "")}
+  theme={isDark ? "vs-dark" : "light"}
+  options={{
+    // --- Typography & Readability ---
+    fontSize: 15, // Slightly larger for less eye strain
+    fontFamily: "'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace",
+    fontLigatures: true, // Turns '===' and '=>' into beautiful connected symbols
+    lineHeight: 24, // Adds vertical breathing room between lines
+    
+    // --- UI Layout ---
+    minimap: { enabled: false }, // Keeps it clean
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    padding: { top: 20, bottom: 20 },
+    wordWrap: "on", // Prevents annoying horizontal scrolling
+    
+    // --- Animations & Cursors ---
+    smoothScrolling: true,
+    cursorBlinking: "smooth",
+    cursorSmoothCaretAnimation: "on", // Silky smooth typing animation
+    
+    // --- Coding Aids ---
+    lineNumbersMinChars: 3,
+    renderLineHighlight: "all",
+    bracketPairColorization: {
+      enabled: true, // Colors matching brackets (e.g., {}, [], ())
+    },
+    guides: {
+      bracketPairs: true, // Draws connecting lines for matching brackets
+      indentation: true, // Shows vertical lines for indentation levels
+    },
+    
+    // --- Polish ---
+    formatOnPaste: true,
+    scrollbar: {
+      verticalScrollbarSize: 8,
+      horizontalScrollbarSize: 8,
+      alwaysConsumeMouseWheel: false, // Prevents scroll trapping
+    },
+  }}
+/>
         </main>
 
         {/* Resize Handle */}
