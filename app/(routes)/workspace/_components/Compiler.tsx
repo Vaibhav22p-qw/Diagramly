@@ -39,26 +39,6 @@ const LANGUAGES: Record<
   },
 };
 
-async function readJsonResponse(response: Response): Promise<Record<string, any>> {
-  const text = await response.text();
-  if (!text.trim()) {
-    return {
-      success: false,
-      message: `The server returned an empty response (HTTP ${response.status}).`,
-    };
-  }
-
-  try {
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed === "object" ? parsed : { success: false, message: "The server returned an invalid response." };
-  } catch {
-    return {
-      success: false,
-      message: `The server returned an invalid response (HTTP ${response.status}).`,
-    };
-  }
-}
-
 export default function Compiler() {
   const jdoodleSessionRef = useRef<{
     sendInput: (input: string) => void;
@@ -87,7 +67,6 @@ export default function Compiler() {
   >("idle");
   const [successfulExecutionId, setSuccessfulExecutionId] =
     useState<string | null>(null);
-  const learnTrackingRef = useRef(false);
   const [codePrompt, setCodePrompt] = useState<string | null>(null);
   const [retrievedPrompt, setRetrievedPrompt] = useState<string | null>(null);
   const [successfulExecutionPrompt, setSuccessfulExecutionPrompt] =
@@ -113,7 +92,6 @@ export default function Compiler() {
     setCompilerError("");
     setExitCode(null);
     setCompileStatus("idle");
-    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setSuccessfulExecutionPrompt(null);
   };
@@ -139,7 +117,6 @@ export default function Compiler() {
     setCode(LANGUAGES[key].defaultCode);
     setAiResponse("");
     setGenerationSource(null);
-    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setCodePrompt(null);
     setRetrievedPrompt(null);
@@ -154,7 +131,6 @@ export default function Compiler() {
 
   const handleResetCode = () => {
     setCode(LANGUAGES[languageKey].defaultCode);
-    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setCodePrompt(null);
     setSuccessfulExecutionPrompt(null);
@@ -162,7 +138,6 @@ export default function Compiler() {
 
   const handleCodeChange = (value: string) => {
     setCode(value);
-    learnTrackingRef.current = false;
     setSuccessfulExecutionId(null);
     setSuccessfulExecutionPrompt(null);
   };
@@ -175,8 +150,7 @@ const handleRunCode = async () => {
   setCompilerError("");
   setExitCode(null);
   setCompileStatus("idle");
-  learnTrackingRef.current = false;
-    setSuccessfulExecutionId(null);
+  setSuccessfulExecutionId(null);
 
   setTerminalEntries(
     input.trim()
@@ -266,8 +240,7 @@ const handleInteractiveRun = async () => {
   setCompilerError("");
   setExitCode(null);
   setCompileStatus("idle");
-  learnTrackingRef.current = false;
-    setSuccessfulExecutionId(null);
+  setSuccessfulExecutionId(null);
   setSuccessfulExecutionPrompt(null);
   setTerminalEntries([]);
 
@@ -296,8 +269,6 @@ const handleInteractiveRun = async () => {
           "Failed to start program."
       );
     }
-
-    learnTrackingRef.current = data.learnableExecutionTracked === true;
 
     jdoodleSessionRef.current = {
       sendInput: async (input: string) => {
@@ -406,11 +377,7 @@ const handleInteractiveRun = async () => {
           jdoodleSessionRef.current =
             null;
 
-          if (
-            pollData.exitCode === 0 &&
-            learnTrackingRef.current &&
-            pollData.learnableExecutionTracked === true
-          ) {
+          if (pollData.exitCode === 0) {
             setSuccessfulExecutionId(data.sessionId);
             setSuccessfulExecutionPrompt(promptForExecution);
           }
@@ -606,7 +573,7 @@ const sendRuntimeInput = () => {
         }),
       });
 
-      const data = await readJsonResponse(response);
+      const data = await response.json();
 
       if (!response.ok || !data.success || !data.learned) {
         throw new Error(data.message || "Failed to learn solution.");
@@ -619,8 +586,7 @@ const sendRuntimeInput = () => {
           text: "Solution saved to Diagramly knowledge.",
         },
       ]);
-      learnTrackingRef.current = false;
-    setSuccessfulExecutionId(null);
+      setSuccessfulExecutionId(null);
       setSuccessfulExecutionPrompt(null);
     } catch (error: any) {
       setTerminalEntries((prev) => [

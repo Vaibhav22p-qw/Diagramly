@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { learnFromSolution } from "@/lib/knowledge/learn";
 import {
-  consumeSuccessfulCompilerExecution,
-} from "@/lib/compiler/execution-store";
+  consumeSuccessfulExecution,
+} from "@/lib/compiler/execution-results";
 import { normalizeKnowledge } from "@/lib/knowledge/normalize";
 
 export async function POST(request: Request) {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const validation = await consumeSuccessfulCompilerExecution({
+    const validation = consumeSuccessfulExecution({
       executionId,
       language: normalized.language,
       sourceCode: code,
