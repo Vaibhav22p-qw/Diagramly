@@ -5,6 +5,15 @@ import nextDynamic from "next/dynamic";
 import WorkspaceHeader from "./WorkspaceHeader";
 import { RoomProvider } from "@liveblocks/react";
 import DashboardView from "@/components/dashboard/DashboardView";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const Compiler = nextDynamic(() => import("./Compiler"), {
   ssr: false,
@@ -208,6 +217,8 @@ function Workspace({ workspaceId }: WorkspaceProps) {
   }, [openPanels, openPanel, saveDocument, showDashboard]);
 
   const handlePanelModeChange = useCallback(async (mode: PanelMode) => {
+    if (mode === panelMode) return;
+
     if (mode === "two" && openPanels.document && (Object.values(openPanels).filter(Boolean).length > 2)) {
       const keep = recentPanels.filter((panel) => openPanels[panel]).slice(-2);
       if (!keep.includes("document") && !(await saveDocument())) { setSaveError("Document could not be saved. Panel mode was not changed."); return; }
@@ -219,7 +230,7 @@ function Workspace({ workspaceId }: WorkspaceProps) {
         return { document: keep.includes("document"), compiler: keep.includes("compiler"), canvas: keep.includes("canvas") };
       });
     }
-  }, [openPanels, recentPanels, saveDocument]);
+  }, [openPanels, panelMode, recentPanels, saveDocument]);
 
   const handleDashboard = useCallback(async () => {
     if (!(await saveOpenPanels())) return;
@@ -227,15 +238,45 @@ function Workspace({ workspaceId }: WorkspaceProps) {
   }, [saveOpenPanels]);
 
   const visiblePanelCount = (Object.keys(openPanels) as WorkspacePanel[]).filter((panel) => openPanels[panel]).length;
-  const gridColumns = visiblePanelCount <= 1 ? "grid-cols-1" : visiblePanelCount === 2 ? "md:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3";
+  const compilerCanvasCount = (openPanels.compiler ? 1 : 0) + (openPanels.canvas ? 1 : 0);
+
+  const editorWidthClass = visiblePanelCount === 1
+    ? "w-full"
+    : visiblePanelCount === 2
+    ? "w-full md:w-1/2"
+    : "w-full md:w-1/2 xl:w-1/3";
+
+  const mainAreaWidthClass = !openPanels.compiler && !openPanels.canvas
+    ? "hidden"
+    : !openPanels.document
+    ? "w-full"
+    : visiblePanelCount === 2
+    ? "w-full md:w-1/2"
+    : "w-full md:w-1/2 xl:w-2/3";
+
+  const compilerCanvasGridColumns = compilerCanvasCount <= 1
+    ? "grid-cols-1"
+    : "grid-cols-1 md:grid-cols-2";
 
   const workspaceContent = (
     <div className="h-[calc(100vh-4rem)] min-w-0 overflow-hidden">
       {showDashboard && <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950"><DashboardView /></div>}
-      <div className={`h-full grid ${gridColumns} ${showDashboard ? "hidden" : ""}`}>
-        <div id="editor-container" className={`min-w-0 overflow-auto ${openPanels.document ? "block" : "hidden"}`}><Editor workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} /></div>
-        <div className={`min-w-0 overflow-hidden ${openPanels.compiler ? "block" : "hidden"}`}><Compiler /></div>
-        <div className={`min-w-0 overflow-hidden ${openPanels.canvas ? "block" : "hidden"}`}><Canvas /></div>
+      <div className={`h-full flex flex-col md:flex-row ${showDashboard ? "hidden" : ""}`}>
+        <div id="editor-container" className={`min-w-0 h-full overflow-auto shrink-0 ${editorWidthClass} ${openPanels.document ? "block" : "hidden"}`}>
+          <Editor workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} />
+        </div>
+        <div className={`relative min-w-0 h-full overflow-hidden shrink-0 ${mainAreaWidthClass}`}>
+          <div
+            className={`h-full w-full grid ${compilerCanvasGridColumns}`}
+          >
+            <div className={`min-w-0 h-full overflow-hidden ${openPanels.compiler ? "block" : "hidden"}`}>
+              <Compiler />
+            </div>
+            <div className={`min-w-0 h-full overflow-hidden ${openPanels.canvas ? "block" : "hidden"}`}>
+              <Canvas workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

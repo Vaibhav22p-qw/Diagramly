@@ -42,7 +42,7 @@ export default function LoginPage() {
       
 
       if (data.success) {
-        router.push("/workspace");
+        router.push("/dashboard");
       } else {
         setError(data.message || "That ID or password doesn't match our records.");
         idInputRef.current?.focus();

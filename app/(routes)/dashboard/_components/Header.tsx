@@ -23,21 +23,18 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
+import { useTheme } from "next-themes";
 import ProfileMenu from "@/components/menu";
 
 function Header() {
-  const [darkMode, setDarkMode] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const darkMode = theme === "dark";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   const router = useRouter();
   const pathname = usePathname();
 
   const toggleTheme = () => {
-    setDarkMode((prev) => {
-      const next = !prev;
-      document.documentElement.classList.toggle("dark", next);
-      return next;
-    });
+    setTheme(darkMode ? "light" : "dark");
   };
 
   const navigate = (path: string) => {

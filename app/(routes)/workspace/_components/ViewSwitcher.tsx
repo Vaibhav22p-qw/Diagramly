@@ -16,15 +16,29 @@ export default function ViewSwitcher({ openPanels, showDashboard, panelMode, onP
       <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 border border-gray-200 shadow-sm">
         <button type="button" aria-pressed={showDashboard} onClick={onDashboard} className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${showDashboard ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:bg-white hover:text-gray-900"}`}><span className="hidden sm:inline">Dashboard</span><span className="sm:hidden">D</span></button>
         <div className="h-5 w-px bg-gray-300" />
-        {views.map(({ value, label }) => (
-          <button key={value} type="button" aria-pressed={openPanels[value] && !showDashboard} onClick={() => onPanelToggle(value)} className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${openPanels[value] && !showDashboard ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:bg-white hover:text-gray-900"}`}>
-            <span className="hidden sm:inline">{label}</span><span className="sm:hidden">{label.slice(0, 1)}</span>
-          </button>
-        ))}
+        {views.map(({ value, label }) => {
+          const isPressed = openPanels[value] && !showDashboard;
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={isPressed}
+              onClick={() => onPanelToggle(value)}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
+                isPressed
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:bg-white hover:text-gray-900"
+              }`}
+            >
+              <span className="hidden sm:inline">{label}</span>
+              <span className="sm:hidden">{label.slice(0, 1)}</span>
+            </button>
+          );
+        })}
       </div>
       <div className="ml-2 hidden items-center rounded-full border border-gray-200 bg-white p-0.5 text-xs sm:flex">
-        <button type="button" onClick={() => onPanelModeChange("two")} className={`rounded-full px-2.5 py-1 ${panelMode === "two" ? "bg-blue-600 text-white" : "text-gray-500"}`}>2 Panels</button>
-        <button type="button" onClick={() => onPanelModeChange("three")} className={`rounded-full px-2.5 py-1 ${panelMode === "three" ? "bg-blue-600 text-white" : "text-gray-500"}`}>3 Panels</button>
+        <button type="button" onClick={() => onPanelModeChange("two")} className={`rounded-full px-2.5 py-1 transition-colors ${panelMode === "two" ? "bg-blue-600 text-white font-medium" : "text-gray-500 hover:text-gray-900"}`}>2 Panels</button>
+        <button type="button" onClick={() => onPanelModeChange("three")} className={`rounded-full px-2.5 py-1 transition-colors ${panelMode === "three" ? "bg-blue-600 text-white font-medium" : "text-gray-500 hover:text-gray-900"}`}>3 Panels</button>
       </div>
     </div>
   );

@@ -13,40 +13,19 @@ import Terminal, {
 
 type CompilerLanguage = "c" | "cpp" | "java" | "python";
 
-const LANGUAGES: Record<
-  string,
-  { name: string; monacoLang: string; defaultCode: string }
-> = {
-  cpp: {
-    name: "C++",
-    monacoLang: "cpp",
-    defaultCode: `#include <iostream>\nusing namespace std;\n\nint main() {\n    cout << "Hello Diagramly!" << endl;\n    return 0;\n}`,
-  },
-  c: {
-    name: "C",
-    monacoLang: "c",
-    defaultCode: `#include <stdio.h>\n\nint main() {\n    printf("Hello Diagramly!\\n");\n    return 0;\n}`,
-  },
-  java: {
-    name: "Java",
-    monacoLang: "java",
-    defaultCode: `public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello Diagramly!");\n    }\n}`,
-  },
-  python: {
-    name: "Python 3",
-    monacoLang: "python",
-    defaultCode: `print("Hello Diagramly!")`,
-  },
-};
+import { LANGUAGES } from "@/lib/compiler/languages";
+import { useTheme } from "next-themes";
 
 export default function Compiler() {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
+
   const jdoodleSessionRef = useRef<{
     sendInput: (input: string) => void;
     disconnect: () => void;
   } | null>(null);
   
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const isDark = theme === "dark";
+
 
   const [languageKey, setLanguageKey] = useState<CompilerLanguage>("cpp");
   const [code, setCode] = useState<string>(LANGUAGES["cpp"].defaultCode);
@@ -638,8 +617,10 @@ const sendRuntimeInput = () => {
     setShowAI(false);
   };
 
+
+
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    setTheme(isDark ? "light" : "dark");
   };
 
   return (

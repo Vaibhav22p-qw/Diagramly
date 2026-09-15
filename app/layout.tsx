@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import Script from "next/script";
 import Provider from "@/components/LiveblocksProvider";
+import { ThemeProviderWrapper } from "@/components/ThemeProviderWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
   <head>
     <Script
       async
@@ -29,10 +30,12 @@ export default function RootLayout({
   </head>
 
   <body className={inter.className}>
-    <Provider>
-      {children}
-      <Toaster />
-    </Provider>
+    <ThemeProviderWrapper attribute="class" defaultTheme="light" enableSystem={false}>
+      <Provider>
+        {children}
+        <Toaster />
+      </Provider>
+    </ThemeProviderWrapper>
   </body>
 </html>
   );

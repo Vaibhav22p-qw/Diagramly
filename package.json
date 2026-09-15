@@ -9,6 +9,9 @@
     "lint": "next lint",
     "test:knowledge": "tsx --test tests/knowledge/phase-2-2.test.ts",
     "test:generation": "tsx --test tests/generation/phase-3.test.ts",
+    "test:workspace": "tsx --test tests/workspace/phase-1.test.ts",
+    "test:canvas": "tsx --test tests/workspace/phase-2.test.ts",
+    "test:connectors": "tsx --test tests/workspace/phase-3.test.ts",
     "knowledge:backfill": "tsx scripts/backfill-knowledge-embeddings.ts"
   },
   "dependencies": {
@@ -47,11 +50,15 @@
     "webstomp-client": "^1.2.6"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/sockjs-client": "^1.5.4",
     "autoprefixer": "^10.0.1",
+    "jsdom": "^28.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
     "tsx": "^4.23.12",

@@ -176,17 +176,26 @@ export async function PATCH(
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return NextResponse.json({ success: false, message: "Invalid authentication token" }, { status: 401 });
     }
-    const { document: documentData } = await req.json();
-    if (!documentData || documentData.version !== 1 || !Array.isArray(documentData.content)) {
-      return NextResponse.json({ success: false, message: "Invalid document" }, { status: 400 });
+    const { document: documentData, canvas: canvasData } = await req.json();
+    const updateSet: any = {};
+    if (documentData && documentData.version === 1 && Array.isArray(documentData.content)) {
+      updateSet.document = documentData;
     }
+    if (canvasData) {
+      updateSet.canvas = canvasData;
+    }
+
+    if (Object.keys(updateSet).length === 0) {
+      return NextResponse.json({ success: false, message: "Invalid payload" }, { status: 400 });
+    }
+
     const workspace = await Workspace.findOneAndUpdate(
       { _id: id, ownerId: new mongoose.Types.ObjectId(userId), isTrashed: { $ne: true } },
-      { $set: { document: documentData } },
+      { $set: updateSet },
       { new: true }
     );
     if (!workspace) return NextResponse.json({ success: false, message: "Workspace not found" }, { status: 404 });
-    return NextResponse.json({ success: true, document: workspace.document });
+    return NextResponse.json({ success: true, document: workspace.document, canvas: workspace.canvas });
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
       return NextResponse.json({ success: false, message: "Invalid or expired authentication token" }, { status: 401 });

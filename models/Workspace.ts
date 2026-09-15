@@ -47,6 +47,11 @@ const WorkspaceSchema = new Schema(
         characterCount: { type: Number, default: 0 },
       },
     },
+
+    canvas: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true,
