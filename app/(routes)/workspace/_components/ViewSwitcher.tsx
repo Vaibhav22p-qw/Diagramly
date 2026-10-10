@@ -13,9 +13,9 @@ const views: { value: WorkspacePanel; label: string }[] = [
 export default function ViewSwitcher({ openPanels, showDashboard, panelMode, onPanelToggle, onPanelModeChange, onDashboard }: Props) {
   return (
     <div className="flex items-center justify-center min-w-0">
-      <div className="flex items-center gap-1 rounded-full bg-gray-100 p-1 border border-gray-200 shadow-sm">
-        <button type="button" aria-pressed={showDashboard} onClick={onDashboard} className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${showDashboard ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:bg-white hover:text-gray-900"}`}><span className="hidden sm:inline">Dashboard</span><span className="sm:hidden">D</span></button>
-        <div className="h-5 w-px bg-gray-300" />
+      <div className="flex items-center gap-1 rounded-full bg-white dark:bg-slate-900 p-1 border border-purple-200 dark:border-purple-800 shadow-sm">
+        <button type="button" aria-pressed={showDashboard} onClick={onDashboard} className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${showDashboard ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300"}`}><span className="hidden sm:inline">Dashboard</span><span className="sm:hidden">D</span></button>
+        <div className="h-5 w-px bg-purple-100 dark:bg-purple-900/30" />
         {views.map(({ value, label }) => {
           const isPressed = openPanels[value] && !showDashboard;
           return (
@@ -26,8 +26,8 @@ export default function ViewSwitcher({ openPanels, showDashboard, panelMode, onP
               onClick={() => onPanelToggle(value)}
               className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
                 isPressed
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:bg-white hover:text-gray-900"
+                  ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 shadow-sm"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300"
               }`}
             >
               <span className="hidden sm:inline">{label}</span>
@@ -35,10 +35,6 @@ export default function ViewSwitcher({ openPanels, showDashboard, panelMode, onP
             </button>
           );
         })}
-      </div>
-      <div className="ml-2 hidden items-center rounded-full border border-gray-200 bg-white p-0.5 text-xs sm:flex">
-        <button type="button" onClick={() => onPanelModeChange("two")} className={`rounded-full px-2.5 py-1 transition-colors ${panelMode === "two" ? "bg-blue-600 text-white font-medium" : "text-gray-500 hover:text-gray-900"}`}>2 Panels</button>
-        <button type="button" onClick={() => onPanelModeChange("three")} className={`rounded-full px-2.5 py-1 transition-colors ${panelMode === "three" ? "bg-blue-600 text-white font-medium" : "text-gray-500 hover:text-gray-900"}`}>3 Panels</button>
       </div>
     </div>
   );

@@ -28,6 +28,26 @@ export default function ConnectorRenderer({
   const x2 = targetPoint?.x || 0;
   const y2 = targetPoint?.y || 0;
 
+  const strokeColor =
+    connector.style?.stroke ||
+    (connector.type === "main-function"
+      ? isSelected ? "#a855f7" : "#c084fc"
+      : connector.type === "main-output"
+      ? isSelected ? "#22c55e" : "#4ade80"
+      : isSelected ? "#38bdf8" : "#a855f7");
+
+  const glowColor =
+    connector.type === "main-function"
+      ? "#c084fc"
+      : connector.type === "main-output"
+      ? "#4ade80"
+      : isSelected
+      ? "#38bdf8"
+      : "#c084fc";
+
+  const coreWidth = connector.style?.strokeWidth || (isSelected ? 3.5 : 2.75);
+  const glowWidth = coreWidth + (isSelected ? 4 : 3);
+
   return (
     <g className="group cursor-pointer">
       {/* Invisible broad hitbox for easy clicking/hovering */}
@@ -37,45 +57,31 @@ export default function ConnectorRenderer({
         x2={x2}
         y2={y2}
         stroke="transparent"
-        strokeWidth={16}
+        strokeWidth={20}
         className="pointer-events-auto"
         onPointerDown={handleClick}
       />
 
-      {/* Selection Glow / Outline */}
-      {isSelected && (
-        <line
-          x1={x1}
-          y1={y1}
-          x2={x2}
-          y2={y2}
-          stroke={connector.type === "main-function" ? "#c084fc" : "#93c5fd"}
-          strokeWidth={connector.type === "main-function" ? 8 : 6}
-          strokeLinecap="round"
-          className="pointer-events-none opacity-60"
-        />
-      )}
-
-      {/* Visible Connector Line */}
+      {/* Neon Glow Outer Layer */}
       <line
         x1={x1}
         y1={y1}
         x2={x2}
         y2={y2}
-        stroke={
-          connector.type === "main-function"
-            ? isSelected ? "#7c3aed" : "#8b5cf6"
-            : connector.type === "main-output"
-            ? isSelected ? "#16a34a" : "#22c55e"
-            : isSelected ? "#2563eb" : "#64748b"
-        }
-        strokeWidth={
-          connector.type === "main-function"
-            ? isSelected ? 3.5 : 2.75
-            : connector.type === "main-output"
-            ? isSelected ? 3.5 : 2.75
-            : isSelected ? 2.5 : 1.75
-        }
+        stroke={glowColor}
+        strokeWidth={glowWidth}
+        strokeLinecap="round"
+        className="pointer-events-none opacity-50 blur-[2px] transition-all"
+      />
+
+      {/* Main Visible Neon Connector Line */}
+      <line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke={strokeColor}
+        strokeWidth={coreWidth}
         strokeLinecap="round"
         markerEnd={
           connector.type === "main-function"
@@ -94,29 +100,21 @@ export default function ConnectorRenderer({
           y1={y1}
           x2={x2}
           y2={y2}
-          stroke="#f5f3ff"
-          strokeWidth={0.8}
+          stroke="#fdf4ff"
+          strokeWidth={1}
           strokeDasharray="4 4"
           strokeLinecap="round"
-          className="pointer-events-none dark:stroke-slate-900"
+          className="pointer-events-none"
         />
       )}
 
-      {/* Source Anchor Dot */}
+      {/* Source Anchor Dot (Neon) */}
       <circle
         cx={x1}
         cy={y1}
-        r={connector.type === "main-function" ? 4 : 3}
-        fill={
-          connector.type === "main-function"
-            ? isSelected
-              ? "#7c3aed"
-              : "#8b5cf6"
-            : isSelected
-            ? "#2563eb"
-            : "#64748b"
-        }
-        className="pointer-events-none transition-colors"
+        r={connector.type === "main-function" ? 4.5 : 3.5}
+        fill={strokeColor}
+        className="pointer-events-none"
       />
     </g>
   );

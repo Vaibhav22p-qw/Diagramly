@@ -7,6 +7,10 @@ import {
   MoreVertical,
   Share2,
   Download,
+  Undo2,
+  Redo2,
+  Maximize,
+  Minimize,
 } from "lucide-react";
 import Image from "next/image";
 import React, { useState } from "react";
@@ -14,6 +18,8 @@ import OnlineUsers from "./OnlineUsers";
 import ProfileMenu from "@/components/menu";
 import ViewSwitcher from "./ViewSwitcher";
 import type { PanelMode, WorkspacePanel } from "./Workspace";
+import { useTheme } from "next-themes";
+import { Moon, Sun } from "lucide-react";
 
 function WorkspaceHeader({
   onSave,
@@ -27,6 +33,7 @@ function WorkspaceHeader({
   onPanelToggle,
   onPanelModeChange,
   onDashboard,
+  onCodeToCanvas,
 }: {
   onSave: () => void;
   fileName: string;
@@ -40,9 +47,37 @@ function WorkspaceHeader({
   onPanelToggle: (panel: WorkspacePanel) => void;
   onPanelModeChange: (mode: PanelMode) => void;
   onDashboard: () => void;
+  onCodeToCanvas?: () => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   const handleLiveToggle = () => {
     if (!isLive) {
@@ -69,7 +104,7 @@ function WorkspaceHeader({
   };
 
   return (
-    <header className="relative z-50 flex h-16 items-center justify-between gap-2 border-b border-gray-200 bg-white px-2 sm:gap-6 sm:px-6">
+    <header className="relative z-50 flex h-16 items-center justify-between gap-2 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 sm:gap-6 sm:px-6">
 
       {/* LEFT */}
       <div className="flex min-w-0 items-center gap-2 sm:gap-4">
@@ -90,7 +125,7 @@ function WorkspaceHeader({
 
         {/* FILE NAME */}
         {isEditing ? (
-          <div className="flex min-w-0 items-center rounded-lg bg-gray-100 px-2">
+          <div className="flex min-w-0 items-center rounded-lg bg-gray-100 dark:bg-slate-800 px-2">
             <Input
               autoFocus
               value={fileName}
@@ -99,7 +134,7 @@ function WorkspaceHeader({
               onKeyDown={(e) =>
                 e.key === "Enter" && setIsEditing(false)
               }
-              className="h-9 w-24 border-0 bg-transparent p-0 text-xs font-medium shadow-none focus-visible:ring-0 sm:w-48 sm:text-[15px]"
+              className="h-9 w-24 border-0 bg-transparent p-0 text-xs font-medium shadow-none focus-visible:ring-0 text-slate-900 dark:text-slate-100 sm:w-48 sm:text-[15px]"
             />
 
             <span className="text-xs font-medium text-gray-400 sm:text-[15px]">
@@ -109,9 +144,9 @@ function WorkspaceHeader({
         ) : (
           <button
             onClick={() => setIsEditing(true)}
-            className="group flex h-9 min-w-0 max-w-[120px] items-center gap-1 rounded-lg px-1.5 transition-colors hover:bg-gray-100 sm:max-w-[220px] sm:px-2"
+            className="group flex h-9 min-w-0 max-w-[120px] items-center gap-1 rounded-lg px-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-slate-800 sm:max-w-[220px] sm:px-2"
           >
-            <span className="truncate text-xs font-medium text-gray-900 sm:text-[15px]">
+            <span className="truncate text-xs font-medium text-gray-900 dark:text-slate-100 sm:text-[15px]">
               {fileName}
             </span>
 
@@ -180,31 +215,56 @@ function WorkspaceHeader({
         {/* DESKTOP SHARE + SAVE */}
         <div className="hidden items-center gap-2 sm:flex">
 
+          {/* CODE TO CANVAS */}
+          {onCodeToCanvas && (
+            <Button
+              variant="outline"
+              className="h-10 rounded-lg border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-300 shadow-sm hover:bg-purple-100 dark:hover:bg-purple-900/50"
+              onClick={onCodeToCanvas}
+            >
+              Code to Canvas
+            </Button>
+          )}
+
+          {/* THEME TOGGLE */}
+          {mounted && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-lg border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-purple-600 dark:hover:text-purple-400"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          )}
+
+          {/* FULLSCREEN */}
+          <Button
+            variant="outline"
+            className="h-10 w-10 p-0 flex items-center justify-center rounded-lg border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+          </Button>
+
           {/* SHARE */}
           <Button
             variant="outline"
-            className="h-10 rounded-lg border-gray-200 bg-white px-4 text-gray-700 shadow-sm hover:bg-gray-50"
+            className="h-10 w-10 p-0 flex items-center justify-center rounded-lg border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700"
             onClick={handleShare}
+            title="Share"
           >
-            <img
-              src="/sh.svg"
-              className="mr-2 h-4 w-4"
-              alt=""
-            />
-            Share
+            <Share2 className="h-4 w-4" />
           </Button>
 
           {/* SAVE */}
           <Button
             onClick={handleDownload}
-            className="h-10 rounded-lg bg-blue-600 px-5 text-white shadow-sm hover:bg-blue-700"
+            className="h-10 w-10 p-0 flex items-center justify-center rounded-lg bg-purple-500/20 text-purple-700 dark:text-purple-300 shadow-sm hover:bg-purple-500/30 border border-purple-500/30"
+            title="Save"
           >
-            <img
-              src="/dow.svg"
-              className="mr-2 h-4 w-4 invert"
-              alt=""
-            />
-            Save
+            <Download className="h-4 w-4" />
           </Button>
 
         </div>

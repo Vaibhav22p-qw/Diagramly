@@ -15,20 +15,34 @@ type CompilerLanguage = "c" | "cpp" | "java" | "python";
 
 import { LANGUAGES } from "@/lib/compiler/languages";
 import { useTheme } from "next-themes";
+import { Undo2, Redo2 } from "lucide-react";
 
-export default function Compiler() {
+export interface CompilerProps {
+  code?: string;
+  setCode?: (val: string) => void;
+  languageKey?: CompilerLanguage;
+  setLanguageKey?: (val: CompilerLanguage) => void;
+}
+
+export default function Compiler({ code: externalCode, setCode: externalSetCode, languageKey: externalLang, setLanguageKey: externalSetLang }: CompilerProps) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === "dark";
+
+  const editorRef = useRef<any>(null);
 
   const jdoodleSessionRef = useRef<{
     sendInput: (input: string) => void;
     disconnect: () => void;
   } | null>(null);
-  
 
+  const [internalLang, setInternalLang] = useState<CompilerLanguage>("cpp");
+  const [internalCode, setInternalCode] = useState<string>(LANGUAGES["cpp"].defaultCode);
 
-  const [languageKey, setLanguageKey] = useState<CompilerLanguage>("cpp");
-  const [code, setCode] = useState<string>(LANGUAGES["cpp"].defaultCode);
+  const languageKey = externalLang || internalLang;
+  const setLanguageKey = externalSetLang || setInternalLang;
+  const code = externalCode !== undefined ? externalCode : internalCode;
+  const setCode = externalSetCode || setInternalCode;
+
 
   const [showAI, setShowAI] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -61,6 +75,10 @@ export default function Compiler() {
   );
 
   const [terminalHeight, setTerminalHeight] = useState(260);
+
+  useEffect(() => {
+    setTerminalHeight(window.innerHeight * 0.2);
+  }, []);
 
   const [isDraggingTerminal, setIsDraggingTerminal] =
     useState(false);
@@ -644,10 +662,10 @@ const sendRuntimeInput = () => {
               onChange={(e) =>
                 handleLanguageChange(e.target.value as CompilerLanguage)
               }
-              className={`text-xs font-medium px-3 py-1.5 pr-8 rounded-md border transition-all cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+              className={`text-xs font-medium px-3 py-1.5 pr-8 rounded-md border transition-all cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500 ${
                 isDark
                   ? "bg-slate-800 text-slate-200 border-slate-700/80 hover:border-slate-600"
-                  : "bg-slate-100 text-slate-800 border-slate-300 hover:border-slate-400"
+                  : "bg-purple-500/10 text-purple-800 border-purple-500/20 hover:border-purple-500/40"
               }`}
             >
               {Object.entries(LANGUAGES).map(([key, lang]) => (
@@ -669,30 +687,6 @@ const sendRuntimeInput = () => {
 
           <div className={`h-4 w-[1px] mx-1 ${isDark ? "bg-slate-800" : "bg-slate-300"}`} />
 
-          {/* Theme Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition-all ${
-              isDark
-                ? "bg-slate-800/60 hover:bg-slate-800 border-slate-700/50 text-slate-300 hover:text-slate-100"
-                : "bg-slate-200/80 hover:bg-slate-200 border-slate-300 text-slate-700 hover:text-slate-900"
-            }`}
-            title={`Switch to ${isDark ? "Light" : "Dark"} Mode`}
-          >
-            {isDark ? (
-              <>
-                <SunIcon className="w-3.5 h-3.5 text-amber-400" />
-                <span>Light</span>
-              </>
-            ) : (
-              <>
-                <MoonIcon className="w-3.5 h-3.5 text-slate-600" />
-                <span>Dark</span>
-              </>
-            )}
-          </button>
-
           {/* Utility Actions */}
           <button
             type="button"
@@ -700,37 +694,60 @@ const sendRuntimeInput = () => {
             className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded-md transition-all ${
               isDark
                 ? "text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 border-slate-700/50"
-                : "text-slate-600 hover:text-slate-900 bg-slate-200/60 hover:bg-slate-200 border-slate-300"
+                : "text-purple-700 hover:text-purple-900 bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20"
             }`}
             title="Copy Code"
           >
             {copied ? (
-              <>
-                <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="text-emerald-500">Copied</span>
-              </>
+              <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
             ) : (
-              <>
-                <CopyIcon className="w-3.5 h-3.5" />
-                <span>Copy</span>
-              </>
+              <CopyIcon className="w-3.5 h-3.5" />
             )}
           </button>
 
+          {/* Undo */}
+          <button
+            type="button"
+            onClick={() => editorRef.current?.trigger('keyboard', 'undo', null)}
+            className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded-md transition-all ${
+              isDark
+                ? "text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 border-slate-700/50"
+                : "text-purple-700 hover:text-purple-900 bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20"
+            }`}
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Reset */}
           <button
             type="button"
             onClick={handleResetCode}
             className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded-md transition-all ${
               isDark
                 ? "text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 border-slate-700/50"
-                : "text-slate-600 hover:text-slate-900 bg-slate-200/60 hover:bg-slate-200 border-slate-300"
+                : "text-purple-700 hover:text-purple-900 bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20"
             }`}
             title="Reset Starter Code"
           >
             <RefreshIcon className="w-3.5 h-3.5" />
-            <span>Reset</span>
           </button>
-              {/* Run Code */}
+
+          {/* Redo */}
+          <button
+            type="button"
+            onClick={() => editorRef.current?.trigger('keyboard', 'redo', null)}
+            className={`flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded-md transition-all ${
+              isDark
+                ? "text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-800 border-slate-700/50"
+                : "text-purple-700 hover:text-purple-900 bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/20"
+            }`}
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Run Code */}
 <button
   type="button"
   onClick={handleInteractiveRun}
@@ -777,33 +794,7 @@ const sendRuntimeInput = () => {
               <span>{isLearning ? "Learning..." : "Learn solution"}</span>
             </button>
           )}
-          {/* AI Toggle Header Button */}
-          <button
-            type="button"
-            onClick={() => setShowAI(!showAI)}
-            className={`group relative flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 ${
-              showAI
-                ? "border-indigo-400 bg-indigo-600 text-white shadow-lg shadow-indigo-500/30"
-                : isDark
-                ? "border-indigo-800/60 bg-indigo-950/50 text-indigo-300 hover:border-indigo-500 hover:bg-indigo-900/70 hover:text-indigo-200 hover:shadow-lg hover:shadow-indigo-500/20"
-                : "border-indigo-200 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:shadow-lg hover:shadow-indigo-200/50"
-            }`}
-            title="Diagramly AI"
-            aria-label="Diagramly AI"
-          >
-            <SparklesIcon
-              className={`h-5 w-5 transition-transform duration-200 ${
-                showAI
-                  ? "scale-110"
-                  : "group-hover:scale-110"
-              }`}
-            />
-
-            {/* Active indicator */}
-            {showAI && (
-              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
-            )}
-          </button>
+          {/* AI button moved to bottom right */}
         </div>
       </header>
 
@@ -822,6 +813,9 @@ const sendRuntimeInput = () => {
   value={code}
   onChange={(val) => handleCodeChange(val || "")}
   theme={isDark ? "vs-dark" : "light"}
+  onMount={(editor) => {
+    editorRef.current = editor;
+  }}
   options={{
     // --- Typography & Readability ---
     fontSize: 15, // Slightly larger for less eye strain
@@ -866,15 +860,17 @@ const sendRuntimeInput = () => {
         {/* Resize Handle */}
         <div
           onPointerDown={() => setIsDraggingTerminal(true)}
-          className={`h-1.5 shrink-0 cursor-row-resize border-y transition-colors ${
-            isDraggingTerminal
-              ? "bg-indigo-500"
-              : isDark
-              ? "bg-slate-800 hover:bg-indigo-500"
-              : "bg-slate-200 hover:bg-indigo-400"
-          }`}
+          className="group relative h-[7px] shrink-0 cursor-row-resize -my-[3px] z-10 flex items-center justify-center"
           title="Drag to resize terminal"
-        />
+        >
+          <div className={`h-[1px] w-full transition-colors ${
+            isDraggingTerminal
+              ? "bg-purple-500"
+              : isDark
+              ? "bg-slate-800 group-hover:bg-purple-500"
+              : "bg-slate-300 group-hover:bg-purple-400"
+          }`} />
+        </div>
 
         {/* Terminal */}
         <div
@@ -893,10 +889,24 @@ const sendRuntimeInput = () => {
 
       </div>
 
+      {/* Floating AI Button above terminal */}
+      {!showAI && (
+        <button
+          type="button"
+          onClick={() => setShowAI(true)}
+          style={{ bottom: `calc(${terminalHeight}px + 16px)` }}
+          className="absolute right-6 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-purple-600 to-indigo-500 text-white shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] hover:scale-110 transition-all duration-300 border border-white/20"
+          title="Ask Diagramly AI"
+        >
+          <SparklesIcon className="h-6 w-6 animate-pulse" />
+        </button>
+      )}
+
       {/* AI Assistant Overlay Panel */}
       {showAI && (
         <div
-          className={`absolute bottom-6 right-6 w-[420px] max-w-[calc(100vw-2rem)] backdrop-blur-xl border rounded-2xl shadow-2xl z-30 overflow-hidden flex flex-col transition-all ${
+          style={{ bottom: `calc(${terminalHeight}px + 16px)` }}
+          className={`absolute right-6 w-[420px] max-w-[calc(100vw-2rem)] backdrop-blur-xl border rounded-2xl shadow-2xl z-30 overflow-hidden flex flex-col transition-all ${
             isDark
               ? "bg-slate-900/95 border-slate-700/80 text-slate-100"
               : "bg-white/95 border-slate-200 text-slate-800"

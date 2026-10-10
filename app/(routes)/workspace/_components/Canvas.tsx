@@ -1,19 +1,87 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Settings, Minus, Plus, Bold, Copy, ArrowUpToLine, ArrowDownToLine, Trash2 } from "lucide-react";
 import { CodeBoxData } from "./canvas/types";
 import { LANGUAGES } from "@/lib/compiler/languages";
 import CanvasToolbar from "./canvas/CanvasToolbar";
 import CanvasControls from "./canvas/CanvasControls";
 import CanvasObjectRenderer from "./canvas/CanvasObjectRenderer";
-import { CanvasObject, CanvasObjectType, Connector, Viewport, ConnectionSide, ConnectingState, MIN_ZOOM, MAX_ZOOM, MIN_OBJECT_SIZE, generateObjectId, screenToWorld, worldToScreen, getConnectionPointCoordinates, CANVAS_WIDTH, CANVAS_HEIGHT, HeaderData, PathData } from "./canvas/types";
+import { CanvasObject, CanvasObjectType, Connector, Viewport, ConnectionSide, ConnectingState, MIN_ZOOM, MAX_ZOOM, MIN_OBJECT_SIZE, generateObjectId, screenToWorld, worldToScreen, getConnectionPointCoordinates, HeaderData, PathData } from "./canvas/types";
 import ConnectorRenderer from "./canvas/ConnectorRenderer";
 import CodeBoxModal from "./canvas/CodeBoxModal";
 import PropertiesPanel from "./canvas/PropertiesPanel";
 import { runExecutionGraph } from "./canvas/execution/graphRunner";
+import { runCode } from "@/lib/compiler/run";
 
 
-export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: { workspaceId?: string; onSaveTrigger?: number; onSaveComplete?: (success: boolean) => void } = {}) {
+
+function findConnectionTarget(
+  worldPos: { x: number; y: number },
+  sourceObjectId: string,
+  objectList: CanvasObject[],
+  zoom: number
+): { targetObjectId: string; targetSide: ConnectionSide; coords: { x: number; y: number } } | null {
+  const sides: ConnectionSide[] = ["top", "right", "bottom", "left"];
+  const SNAP_DISTANCE = 36 / Math.max(0.1, zoom);
+
+  // 1. First priority: Check exact proximity to any connection handle point
+  let bestPointTarget: { targetObjectId: string; targetSide: ConnectionSide; coords: { x: number; y: number }; dist: number } | null = null;
+  for (const obj of objectList) {
+    if (obj.id === sourceObjectId) continue;
+    for (const side of sides) {
+      const pt = getConnectionPointCoordinates(obj, side);
+      const dist = Math.hypot(pt.x - worldPos.x, pt.y - worldPos.y);
+      if (dist < SNAP_DISTANCE && (!bestPointTarget || dist < bestPointTarget.dist)) {
+        bestPointTarget = { targetObjectId: obj.id, targetSide: side, coords: pt, dist };
+      }
+    }
+  }
+
+  if (bestPointTarget) {
+    return {
+      targetObjectId: bestPointTarget.targetObjectId,
+      targetSide: bestPointTarget.targetSide,
+      coords: bestPointTarget.coords,
+    };
+  }
+
+  // 2. Second priority: Check if pointer is anywhere inside or close to an object's boundary
+  const PADDING = 24 / Math.max(0.1, zoom);
+  let bestObjectTarget: { targetObjectId: string; targetSide: ConnectionSide; coords: { x: number; y: number }; dist: number } | null = null;
+
+  for (const obj of objectList) {
+    if (obj.id === sourceObjectId) continue;
+    const isInsideOrNear =
+      worldPos.x >= obj.x - PADDING &&
+      worldPos.x <= obj.x + obj.width + PADDING &&
+      worldPos.y >= obj.y - PADDING &&
+      worldPos.y <= obj.y + obj.height + PADDING;
+
+    if (isInsideOrNear) {
+      // Find the closest side of this object
+      for (const side of sides) {
+        const pt = getConnectionPointCoordinates(obj, side);
+        const dist = Math.hypot(pt.x - worldPos.x, pt.y - worldPos.y);
+        if (!bestObjectTarget || dist < bestObjectTarget.dist) {
+          bestObjectTarget = { targetObjectId: obj.id, targetSide: side, coords: pt, dist };
+        }
+      }
+    }
+  }
+
+  if (bestObjectTarget) {
+    return {
+      targetObjectId: bestObjectTarget.targetObjectId,
+      targetSide: bestObjectTarget.targetSide,
+      coords: bestObjectTarget.coords,
+    };
+  }
+
+  return null;
+}
+
+export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete, incomingCode }: { workspaceId?: string; onSaveTrigger?: number; onSaveComplete?: (success: boolean) => void; incomingCode?: {code: string, language: string, triggerId: number} } = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // -----------------------------
@@ -22,11 +90,43 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   const [objects, setObjects] = useState<CanvasObject[]>([]);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
 
+  // Handle incoming code to canvas
+  useEffect(() => {
+    if (incomingCode && incomingCode.code) {
+      const container = containerRef.current;
+      const rect = container?.getBoundingClientRect();
+      const centerX = rect ? rect.width / 2 : 300;
+      const centerY = rect ? rect.height / 2 : 200;
+      const worldPos = screenToWorld(centerX, centerY, viewport);
+      const width = 300;
+      const height = 200;
+      const data: CodeBoxData = {
+        role: "unassigned",
+        language: incomingCode.language || "cpp",
+        code: incomingCode.code,
+        output: "",
+        outputVisible: false,
+      };
+      const newObject: CanvasObject = {
+        id: generateObjectId("codebox"),
+        type: "codebox",
+        x: Math.round(worldPos.x - width / 2),
+        y: Math.round(worldPos.y - height / 2),
+        width,
+        height,
+        data,
+      };
+      updateObjects((prev) => [...prev, newObject]);
+      setSelectedIds([newObject.id]);
+      setSelectedConnectorId(null);
+    }
+  }, [incomingCode?.triggerId]);
+
   // CodeBox modal state
   const [codeBoxModal, setCodeBoxModal] = useState<{ objectId: string; open: boolean } | null>(null);
 
   // Add CodeBox creation
-  const handleAddCodeBox = useCallback(() => {
+  const handleAddCodeBox = useCallback((role: "unassigned" | "main" | "function" = "unassigned") => {
     const container = containerRef.current;
     const rect = container?.getBoundingClientRect();
     const centerX = rect ? rect.width / 2 : 300;
@@ -35,7 +135,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
     const width = 300;
     const height = 200;
     const data: CodeBoxData = {
-      role: "unassigned",
+      role,
       language: "cpp",
       code: LANGUAGES["cpp"].defaultCode,
       output: "",
@@ -51,9 +151,9 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       data,
     };
     updateObjects((prev) => [...prev, newObject]);
-    setSelectedId(newObject.id);
+    setSelectedIds([newObject.id]);
     setSelectedConnectorId(null);
-    setCodeBoxModal({ objectId: newObject.id, open: true });
+    if (role === "unassigned") setCodeBoxModal({ objectId: newObject.id, open: true });
   }, [viewport]);
 
   // Add Header creation
@@ -79,7 +179,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       data,
     };
     updateObjects((prev) => [...prev, newObject]);
-    setSelectedId(newObject.id);
+    setSelectedIds([newObject.id]);
     setSelectedConnectorId(null);
     setCodeBoxModal({ objectId: newObject.id, open: true });
   }, [viewport]);
@@ -87,6 +187,8 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   const handleOpenCodeBox = useCallback((id: string) => {
     setCodeBoxModal({ objectId: id, open: true });
   }, []);
+
+
 
   const handleCloseCodeBox = useCallback(() => {
     setCodeBoxModal(null);
@@ -125,9 +227,11 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
 
 
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectionBox, setSelectionBox] = useState<{ startX: number; startY: number; endX: number; endY: number } | null>(null);
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; objectId: string | null } | null>(null);
+  const [showProperties, setShowProperties] = useState(false);
 
   // Tools & Path Drawing
   const [activeTool, setActiveTool] = useState<"select" | "pen">("select");
@@ -212,6 +316,42 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
     markUnsaved();
   }, [markUnsaved]);
 
+  const handleRunCodeBoxCanvas = useCallback(async (id: string, e: React.PointerEvent) => {
+    e.stopPropagation();
+    
+    // Optimistic update to set isRunning
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, data: { ...o.data, isRunning: true } } : o));
+    
+    let currentObjects = objects;
+    
+    // We need to wait a tick for the state to settle or we can just find the object from current state
+    const obj = currentObjects.find(o => o.id === id);
+    if (!obj) return;
+    
+    try {
+      let outputText = "";
+      if (obj.data?.role === "main") {
+        const result = await runExecutionGraph(currentObjects, connectors, id);
+        outputText = result.output || result.error || "";
+        
+        // Also update connected output node if it exists
+        const outputConn = connectors.find(c => c.type === "main-output" && c.sourceObjectId === id);
+        if (outputConn) {
+          updateObjects(prev => prev.map(o => o.id === outputConn.targetObjectId ? { ...o, data: { ...o.data, output: outputText, state: result.error ? "error" : "done" } } : o));
+        }
+      } else {
+        const result = await runCode(obj.data?.language as keyof typeof LANGUAGES, obj.data?.code || "");
+        outputText = result.output || result.error || "";
+      }
+      
+      updateObjects(prev => prev.map(o => o.id === id ? { ...o, data: { ...o.data, isRunning: false, output: outputText, outputVisible: true } } : o));
+    } catch (err: any) {
+      updateObjects(prev => prev.map(o => o.id === id ? { ...o, data: { ...o.data, isRunning: false, output: err.message || "Error running code", outputVisible: true } } : o));
+    }
+  }, [objects, connectors]);
+
+  
+
   const handleRunGraphForCodeBox = useCallback(
     async (currentData: CodeBoxData): Promise<{ output?: string; error?: string }> => {
       if (!codeBoxModal) return { error: "No CodeBox selected." };
@@ -290,13 +430,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const panStartRef = useRef<{ clientX: number; clientY: number; vpX: number; vpY: number } | null>(null);
 
-  const draggingRef = useRef<{
-    id: string;
-    clientX: number;
-    clientY: number;
-    objX: number;
-    objY: number;
-  } | null>(null);
+  const draggingRef = useRef<{ clientX: number; clientY: number; objects: { id: string; startX: number; startY: number }[]; } | null>(null);
 
   const resizingRef = useRef<{
     id: string;
@@ -305,6 +439,57 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
     startWidth: number;
     startHeight: number;
   } | null>(null);
+
+  // -----------------------------
+  // Undo/Redo History
+  // -----------------------------
+  const historyRef = useRef<{ objects: CanvasObject[], connectors: Connector[] }[]>([]);
+  const historyIndexRef = useRef(-1);
+  const isUndoRedoAction = useRef(false);
+
+  useEffect(() => {
+    if (isUndoRedoAction.current) {
+      isUndoRedoAction.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      const h = historyRef.current.slice(0, historyIndexRef.current + 1);
+      const last = h[h.length - 1];
+      if (last && JSON.stringify(last.objects) === JSON.stringify(objects) && JSON.stringify(last.connectors) === JSON.stringify(connectors)) return;
+      historyRef.current = [...h, { objects, connectors }];
+      historyIndexRef.current = historyRef.current.length - 1;
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [objects, connectors]);
+
+  useEffect(() => {
+    const handleUndo = () => {
+      if (historyIndexRef.current > 0) {
+        historyIndexRef.current--;
+        const state = historyRef.current[historyIndexRef.current];
+        isUndoRedoAction.current = true;
+        setObjects(state.objects);
+        setConnectors(state.connectors);
+        setStatus("unsaved");
+      }
+    };
+    const handleRedo = () => {
+      if (historyIndexRef.current < historyRef.current.length - 1) {
+        historyIndexRef.current++;
+        const state = historyRef.current[historyIndexRef.current];
+        isUndoRedoAction.current = true;
+        setObjects(state.objects);
+        setConnectors(state.connectors);
+        setStatus("unsaved");
+      }
+    };
+    document.addEventListener("diagramly-canvas-undo", handleUndo);
+    document.addEventListener("diagramly-canvas-redo", handleRedo);
+    return () => {
+      document.removeEventListener("diagramly-canvas-undo", handleUndo);
+      document.removeEventListener("diagramly-canvas-redo", handleRedo);
+    };
+  }, []);
 
   // -----------------------------
   // Viewport Zoom Actions
@@ -342,16 +527,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   // Wheel Zoom Listener
   // -----------------------------
   const clampViewport = useCallback((vp: Viewport, containerWidth: number, containerHeight: number) => {
-    const minX = Math.min(0, containerWidth - CANVAS_WIDTH * vp.zoom);
-    const maxX = Math.max(0, containerWidth - CANVAS_WIDTH * vp.zoom);
-    const minY = Math.min(0, containerHeight - CANVAS_HEIGHT * vp.zoom);
-    const maxY = Math.max(0, containerHeight - CANVAS_HEIGHT * vp.zoom);
-    
-    return {
-      ...vp,
-      x: Math.min(maxX, Math.max(minX, vp.x)),
-      y: Math.min(maxY, Math.max(minY, vp.y)),
-    };
+    return vp;
   }, []);
 
   // -----------------------------
@@ -402,7 +578,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   // -----------------------------
   const handleAddObject = useCallback(
     (type: CanvasObjectType) => {
-      if (type === "codebox") {
+      if (type === "codebox") { handleAddCodeBox(); return; } if (type === "codebox-main") { handleAddCodeBox("main"); return; } if (type === "codebox-function") { handleAddCodeBox("function"); return; } if (false) {
         handleAddCodeBox();
         return;
       }
@@ -425,17 +601,17 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       if (type === "rectangle") {
         width = 160;
         height = 100;
-        data = { label: "Rectangle" };
+        data = { label: "" };
         style = { fill: "#ffffff", stroke: "#64748b", borderRadius: 12 };
       } else if (type === "circle") {
         width = 120;
         height = 120;
-        data = { label: "Circle" };
+        data = { label: "" };
         style = { fill: "#ffffff", stroke: "#6366f1" };
       } else if (type === "text") {
         width = 160;
         height = 50;
-        data = { text: "Double-click to edit text" };
+        data = { text: "" };
         style = { color: "#1e293b", fontSize: 14 };
       } else if (type === "image") {
         width = 180;
@@ -460,7 +636,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       };
 
       updateObjects((prev) => [...prev, newObject]);
-      setSelectedId(newObject.id);
+      setSelectedIds([newObject.id]);
       setSelectedConnectorId(null);
     },
     [viewport]
@@ -475,36 +651,33 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
     }
 
     // 2. Delete selected object and dependent connectors (Step 18)
-    if (selectedId) {
-      updateObjects((prev) => prev.filter((obj) => obj.id !== selectedId));
+    if (selectedIds.length > 0) {
+      updateObjects((prev) => prev.filter((obj) => !selectedIds.includes(obj.id)));
       updateConnectors((prev) =>
         prev.filter(
-          (c) => c.sourceObjectId !== selectedId && c.targetObjectId !== selectedId
+          (c) => !selectedIds.includes(c.sourceObjectId) && !selectedIds.includes(c.targetObjectId)
         )
       );
-      setSelectedId(null);
+      setSelectedIds([]); setShowProperties(false);
     }
-  }, [selectedId, selectedConnectorId]);
+  }, [selectedIds, selectedConnectorId]);
 
   const handleDuplicateSelected = useCallback(() => {
-    if (!selectedId) return;
-    const target = objects.find((obj) => obj.id === selectedId);
-    if (!target) return;
-
-    // Step 17: Duplicate object without inheriting connections
-    const duplicate: CanvasObject = {
+    if (selectedIds.length === 0) return;
+    const targets = objects.filter((obj) => selectedIds.includes(obj.id));
+    if (targets.length === 0) return;
+    const duplicates = targets.map((target) => ({
       ...target,
       id: generateObjectId(target.type),
       x: target.x + 24,
       y: target.y + 24,
       data: target.data ? JSON.parse(JSON.stringify(target.data)) : undefined,
       style: target.style ? { ...target.style } : undefined,
-    };
-
-    updateObjects((prev) => [...prev, duplicate]);
-    setSelectedId(duplicate.id);
+    }));
+    updateObjects((prev) => [...prev, ...duplicates]);
+    setSelectedIds(duplicates.map(d => d.id));
     setSelectedConnectorId(null);
-  }, [objects, selectedId]);
+  }, [objects, selectedIds]);
 
   const handleUpdateObjectData = useCallback((id: string, newData: Record<string, any>) => {
     updateObjects((prev) =>
@@ -595,21 +768,21 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       if (isTyping) return;
 
       if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedId || selectedConnectorId) {
+        if (selectedIds.length > 0 || selectedConnectorId) {
           e.preventDefault();
           handleDeleteSelected();
         }
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
-        if (selectedId) {
+        if (selectedIds.length > 0) {
           e.preventDefault();
           handleDuplicateSelected();
         }
       }
 
       if (e.key === "Escape") {
-        setSelectedId(null);
+        setSelectedIds([]); setShowProperties(false);
         setSelectedConnectorId(null);
         setConnectingState(null);
         connectingRef.current = null;
@@ -628,7 +801,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [selectedId, selectedConnectorId, handleDeleteSelected, handleDuplicateSelected]);
+  }, [selectedIds, selectedConnectorId, handleDeleteSelected, handleDuplicateSelected]);
 
   const [penColor, setPenColor] = useState<string>("#ef4444");
   const [penWidth, setPenWidth] = useState<number>(4);
@@ -652,7 +825,25 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
     }
 
     // If left click on background or middle click, initiate pan
-    if (e.button === 0 || e.button === 1) {
+    if (e.button === 0 && !isSpacePressed && activeTool === "select") {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, viewport);
+        setSelectionBox({
+          startX: worldPos.x,
+          startY: worldPos.y,
+          endX: worldPos.x,
+          endY: worldPos.y,
+        });
+        setSelectedIds([]); setShowProperties(false);
+        setSelectedConnectorId(null);
+      }
+      return;
+    }
+
+    if (e.button === 1 || (e.button === 0 && isSpacePressed)) {
       e.currentTarget.setPointerCapture(e.pointerId);
       setIsPanning(true);
       panStartRef.current = {
@@ -661,8 +852,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
         vpX: viewport.x,
         vpY: viewport.y,
       };
-      // Clear selection if clicking empty canvas
-      setSelectedId(null);
+      setSelectedIds([]); setShowProperties(false);
       setSelectedConnectorId(null);
     }
   };
@@ -677,30 +867,19 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       return;
     }
 
-    // 1. Drag-to-connect active preview tracking & snapping (Step 5 & 8)
+        // 1. Drag-to-connect active preview tracking & snapping (Step 5 & 8)
     if (connectingRef.current) {
       const rect = containerRef.current!.getBoundingClientRect();
       const screenX = e.clientX - rect.left;
       const screenY = e.clientY - rect.top;
       const worldPos = screenToWorld(screenX, screenY, viewport);
 
-      // Check proximity snapping (within 24px)
-      let snappedTarget: { targetObjectId: string; targetSide: ConnectionSide; coords: { x: number; y: number } } | null = null;
-      const SNAP_DISTANCE = 24 / viewport.zoom;
-
-      for (const obj of objects) {
-        if (obj.id === connectingRef.current.sourceObjectId) continue;
-        const sides: ConnectionSide[] = ["top", "right", "bottom", "left"];
-        for (const side of sides) {
-          const pt = getConnectionPointCoordinates(obj, side);
-          const dist = Math.hypot(pt.x - worldPos.x, pt.y - worldPos.y);
-          if (dist < SNAP_DISTANCE) {
-            snappedTarget = { targetObjectId: obj.id, targetSide: side, coords: pt };
-            break;
-          }
-        }
-        if (snappedTarget) break;
-      }
+      const snappedTarget = findConnectionTarget(
+        worldPos,
+        connectingRef.current.sourceObjectId,
+        objects,
+        viewport.zoom
+      );
 
       const updated: ConnectingState = {
         ...connectingRef.current,
@@ -715,6 +894,16 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
     }
 
     // 2. Panning canvas
+    if (selectionBox) {
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, viewport);
+        setSelectionBox((prev) => prev ? { ...prev, endX: worldPos.x, endY: worldPos.y } : null);
+      }
+      return;
+    }
+
     if (isPanning && panStartRef.current) {
       const dx = e.clientX - panStartRef.current.clientX;
       const dy = e.clientY - panStartRef.current.clientY;
@@ -729,19 +918,20 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
 
     // 3. Dragging object
     if (draggingRef.current) {
-      const { id, clientX, clientY, objX, objY } = draggingRef.current;
+      const { clientX, clientY, objects: dragTargets } = draggingRef.current;
       const deltaX = (e.clientX - clientX) / viewport.zoom;
       const deltaY = (e.clientY - clientY) / viewport.zoom;
 
       updateObjects((prev) =>
         prev.map((obj) => {
-          if (obj.id !== id) return obj;
-          const newX = Math.round(objX + deltaX);
-          const newY = Math.round(objY + deltaY);
+          const target = dragTargets.find((t) => t.id === obj.id);
+          if (!target) return obj;
+          const newX = Math.round(target.startX + deltaX);
+          const newY = Math.round(target.startY + deltaY);
           return {
             ...obj,
-            x: Math.max(0, Math.min(newX, CANVAS_WIDTH - obj.width)),
-            y: Math.max(0, Math.min(newY, CANVAS_HEIGHT - obj.height)),
+            x: newX,
+            y: newY,
           };
         })
       );
@@ -761,8 +951,8 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
           const newHeight = Math.max(MIN_OBJECT_SIZE, Math.round(startHeight + deltaHeight));
           return {
             ...obj,
-            width: Math.min(newWidth, CANVAS_WIDTH - obj.x),
-            height: Math.min(newHeight, CANVAS_HEIGHT - obj.y),
+            width: newWidth,
+            height: newHeight,
           };
         })
       );
@@ -771,6 +961,31 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   };
 
   const handleCanvasPointerUp = (e: React.PointerEvent) => {
+    if (selectionBox) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      const minX = Math.min(selectionBox.startX, selectionBox.endX);
+      const maxX = Math.max(selectionBox.startX, selectionBox.endX);
+      const minY = Math.min(selectionBox.startY, selectionBox.endY);
+      const maxY = Math.max(selectionBox.startY, selectionBox.endY);
+      
+      const newSelectedIds = objects.filter(obj => {
+        const objMinX = obj.x;
+        const objMaxX = obj.x + obj.width;
+        const objMinY = obj.y;
+        const objMaxY = obj.y + obj.height;
+        return (
+          objMinX < maxX &&
+          objMaxX > minX &&
+          objMinY < maxY &&
+          objMaxY > minY
+        );
+      }).map(obj => obj.id);
+
+      setSelectedIds(newSelectedIds);
+      setSelectionBox(null);
+      return;
+    }
+
     // Finish drawing
     if (currentPath && activeTool === "pen") {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -810,82 +1025,69 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       return;
     }
 
-    // Complete connection if active
+        // Complete connection if active
     if (connectingRef.current) {
-      const { sourceObjectId, sourceSide, hoveredTarget } = connectingRef.current;
-      if (hoveredTarget && hoveredTarget.targetObjectId !== sourceObjectId) {
+      const { sourceObjectId, sourceSide } = connectingRef.current;
+      const rect = containerRef.current?.getBoundingClientRect();
+      const screenX = rect ? e.clientX - rect.left : 0;
+      const screenY = rect ? e.clientY - rect.top : 0;
+      const worldPos = screenToWorld(screenX, screenY, viewport);
+
+      const target =
+        connectingRef.current.hoveredTarget ||
+        findConnectionTarget(worldPos, sourceObjectId, objects, viewport.zoom);
+
+      if (target && target.targetObjectId !== sourceObjectId) {
         const sourceObj = objects.find((o) => o.id === sourceObjectId);
-        const targetObj = objects.find((o) => o.id === hoveredTarget.targetObjectId);
+        const targetObj = objects.find((o) => o.id === target.targetObjectId);
 
         if (sourceObj && targetObj) {
           const isSourceCodeBox = sourceObj.type === "codebox";
           const isTargetCodeBox = targetObj.type === "codebox";
+          const sourceRole = sourceObj.data?.role;
+          const targetRole = targetObj.data?.role;
 
-          if (isSourceCodeBox && isTargetCodeBox) {
-            const sourceRole = sourceObj.data?.role;
-            const targetRole = targetObj.data?.role;
+          let connType: "main-function" | "main-output" | "normal" = "normal";
 
-            // Semantic Connector Rule:
-            // SOURCE: Main CodeBox, TARGET: Function CodeBox
-            if (sourceRole === "main" && targetRole === "function") {
-              const alreadyExists = connectors.some(
-                (c) =>
-                  c.type === "main-function" &&
-                  c.sourceObjectId === sourceObjectId &&
-                  c.targetObjectId === hoveredTarget.targetObjectId
-              );
-              if (!alreadyExists) {
-                const newConn: Connector = {
-                  id: generateObjectId("conn"),
-                  sourceObjectId,
-                  targetObjectId: hoveredTarget.targetObjectId,
-                  sourceSide,
-                  targetSide: hoveredTarget.targetSide,
-                  type: "main-function",
-                };
-                updateConnectors((prev) => [...prev, newConn]);
-                setSelectedConnectorId(newConn.id);
-                setSelectedId(null);
-              }
-            } else {
-              // Reject invalid semantic relationship (Main->Main, Function->Main, Function->Function, self-reference)
-              // Do not create an invalid semantic connector
-            }
-          } else if (targetObj.type === "output") {
-            const isSourceMain = sourceObj.type === "codebox" && sourceObj.data?.role === "main";
-            if (isSourceMain && sourceSide === "bottom" && hoveredTarget.targetSide === "top") {
-              const alreadyExists = connectors.some(
-                (c) => c.type === "main-output" && c.sourceObjectId === sourceObjectId && c.targetObjectId === hoveredTarget.targetObjectId
-              );
-              if (!alreadyExists) {
-                const newConn: Connector = {
-                  id: generateObjectId("conn"),
-                  sourceObjectId,
-                  targetObjectId: hoveredTarget.targetObjectId,
-                  sourceSide,
-                  targetSide: hoveredTarget.targetSide,
-                  type: "main-output",
-                };
-                updateConnectors((prev) => [...prev, newConn]);
-                setSelectedConnectorId(newConn.id);
-                setSelectedId(null);
-              }
-            } else {
-              // Reject invalid Output connection
-            }
+          if (isSourceCodeBox && isTargetCodeBox && sourceRole === "main" && targetRole === "function") {
+            connType = "main-function";
+          } else if (
+            targetObj.type === "output" &&
+            isSourceCodeBox &&
+            sourceRole === "main" &&
+            sourceSide === "bottom" &&
+            target.targetSide === "top"
+          ) {
+            connType = "main-output";
           } else {
-            // Normal connector between arbitrary objects / shapes
+            connType = "normal";
+          }
+
+          const existingConn = connectors.find(
+            (c) =>
+              c.sourceObjectId === sourceObjectId &&
+              c.targetObjectId === target.targetObjectId &&
+              c.sourceSide === sourceSide &&
+              c.targetSide === target.targetSide
+          );
+
+          if (!existingConn) {
             const newConn: Connector = {
               id: generateObjectId("conn"),
               sourceObjectId,
-              targetObjectId: hoveredTarget.targetObjectId,
+              targetObjectId: target.targetObjectId,
               sourceSide,
-              targetSide: hoveredTarget.targetSide,
-              type: "normal",
+              targetSide: target.targetSide,
+              type: connType,
             };
             updateConnectors((prev) => [...prev, newConn]);
             setSelectedConnectorId(newConn.id);
-            setSelectedId(null);
+            setSelectedIds([]);
+            setShowProperties(false);
+          } else {
+            setSelectedConnectorId(existingConn.id);
+            setSelectedIds([]);
+            setShowProperties(false);
           }
         }
       }
@@ -908,14 +1110,19 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
   // Object Pointer Handlers
   // -----------------------------
   const handleStartDrag = (id: string, e: React.PointerEvent) => {
-    const target = objects.find((o) => o.id === id);
-    if (!target) return;
+    let targets = objects.filter((o) => selectedIds.includes(o.id));
+    if (!targets.some(t => t.id === id)) {
+      const target = objects.find(o => o.id === id);
+      if (target) {
+        targets = [target];
+        setSelectedIds([id]);
+      }
+    }
+    if (targets.length === 0) return;
     draggingRef.current = {
-      id,
       clientX: e.clientX,
       clientY: e.clientY,
-      objX: target.x,
-      objY: target.y,
+      objects: targets.map(t => ({ id: t.id, startX: t.x, startY: t.y }))
     };
   };
 
@@ -955,7 +1162,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
           setContextMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, objectId: null });
         }
       }}
-      className={`relative h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-900 ${canvasCursor} select-none touch-none`}
+      className={`relative h-full w-full overflow-hidden bg-white dark:bg-slate-900 ${canvasCursor} select-none touch-none`}
     >
 
       {/* Floating Canvas Toolbar */}
@@ -963,10 +1170,10 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
         onAddObject={handleAddObject}
         onDuplicateSelected={handleDuplicateSelected}
         onDeleteSelected={handleDeleteSelected}
-        hasSelection={Boolean(selectedId || selectedConnectorId)}
-        canDuplicate={Boolean(selectedId && !selectedConnectorId)}
+        hasSelection={Boolean(selectedIds.length > 0 || selectedConnectorId)}
+        canDuplicate={Boolean(selectedIds.length > 0 && !selectedConnectorId)}
         activeTool={activeTool}
-        onSetTool={(t) => { setActiveTool(t); setSelectedId(null); setSelectedConnectorId(null); }}
+        onSetTool={(t) => { setActiveTool(t); setSelectedIds([]); setShowProperties(false); setSelectedConnectorId(null); }}
         penColor={penColor}
         penWidth={penWidth}
         onSetPenColor={setPenColor}
@@ -982,26 +1189,26 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
       />
 
       {/* Floating Properties Panel */}
-      <PropertiesPanel
-        selectedObject={objects.find(o => o.id === selectedId) || null}
-        selectedConnector={connectors.find(c => c.id === selectedConnectorId) || null}
-        onUpdateObject={handleUpdateObject}
-        onUpdateConnector={handleUpdateConnectorStyle}
-      />
+      {showProperties && (
+        <PropertiesPanel
+          selectedObject={objects.find(o => selectedIds.includes(o.id)) || null}
+          selectedConnector={connectors.find(c => c.id === selectedConnectorId) || null}
+          onUpdateObject={handleUpdateObject}
+          onUpdateConnector={handleUpdateConnectorStyle}
+          onClose={() => {
+            setShowProperties(false);
+          }}
+        />
+      )}
 
-      {/* World Coordinate Transform Layer (For Objects) */}
+            {/* World Coordinate Transform Layer (For Objects) */}
       <div
         style={{
           transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
           transformOrigin: "0 0",
         }}
-        className="absolute top-0 left-0 h-0 w-0 pointer-events-auto"
+        className="absolute top-0 left-0 w-full h-full pointer-events-auto"
       >
-        {/* Finite Canvas Boundary */}
-        <div 
-          className="absolute top-0 left-0 bg-white dark:bg-slate-950 shadow-md ring-1 ring-slate-200 dark:ring-slate-800 pointer-events-none"
-          style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}
-        />
         
         {/* Step 9 Layering: Canvas Objects Layer (rendered behind connectors now) */}
         <div className="relative z-0">
@@ -1009,7 +1216,7 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
             <CanvasObjectRenderer
               key={obj.id}
               object={obj}
-              isSelected={selectedId === obj.id}
+              isSelected={selectedIds.includes(obj.id)}
               isConnecting={Boolean(connectingState)}
               snappedSide={
                 connectingState?.hoveredTarget?.targetObjectId === obj.id
@@ -1017,8 +1224,10 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
                   : undefined
               }
               onSelect={() => {
-                setSelectedId(obj.id);
-                setSelectedConnectorId(null);
+                if (!selectedIds.includes(obj.id)) {
+                  setSelectedIds([obj.id]);
+                  setSelectedConnectorId(null);
+                }
               }}
               onStartDrag={(e) => handleStartDrag(obj.id, e)}
               onStartResize={(e) => handleStartResize(obj.id, e)}
@@ -1028,11 +1237,12 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
               onLeaveConnectionPoint={handleLeaveConnectionPoint}
               onUpdateData={(newData) => handleUpdateObjectData(obj.id, newData)}
               onOpenCodeBox={handleOpenCodeBox}
+              onRunCodeBox={handleRunCodeBoxCanvas}
               isDrawingMode={activeTool === 'pen'}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setSelectedId(obj.id);
+                setSelectedIds([obj.id]);
                 setSelectedConnectorId(null);
                 const rect = containerRef.current?.getBoundingClientRect();
                 setContextMenu({ x: e.clientX - (rect?.left || 0), y: e.clientY - (rect?.top || 0), objectId: obj.id });
@@ -1040,32 +1250,35 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
               onDeleteObject={(id) => {
                 updateObjects(prev => prev.filter(o => o.id !== id));
                 updateConnectors(prev => prev.filter(c => c.sourceObjectId !== id && c.targetObjectId !== id));
-                if (selectedId === id) setSelectedId(null);
+                if (selectedIds.includes(id)) setSelectedIds([]); setShowProperties(false);
               }}
             />
           ))}
         </div>
 
-        {/* Connectors SVG Layer (Inside world transform, overlaying objects) */}
-        <svg className="absolute top-0 left-0 overflow-visible pointer-events-none z-10" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+        {/* Connectors SVG Layer (Inside world transform, overlaying objects with Neon glow) */}
+        <svg
+          style={{ width: "100%", height: "100%", overflow: "visible" }}
+          className="absolute top-0 left-0 overflow-visible pointer-events-none z-20"
+        >
           <defs>
-            <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#64748b" />
+            <marker id="arrowhead" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 1 2 L 10 6 L 1 10 z" fill="#a855f7" />
             </marker>
-            <marker id="arrowhead-selected" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#2563eb" />
+            <marker id="arrowhead-selected" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+              <path d="M 1 2 L 10 6 L 1 10 z" fill="#38bdf8" />
             </marker>
-            <marker id="arrowhead-semantic" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#8b5cf6" />
+            <marker id="arrowhead-semantic" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 1 2 L 10 6 L 1 10 z" fill="#c084fc" />
             </marker>
-            <marker id="arrowhead-semantic-selected" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#7c3aed" />
+            <marker id="arrowhead-semantic-selected" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+              <path d="M 1 2 L 10 6 L 1 10 z" fill="#e879f9" />
             </marker>
-            <marker id="arrowhead-output" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#22c55e" />
+            <marker id="arrowhead-output" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 1 2 L 10 6 L 1 10 z" fill="#4ade80" />
             </marker>
-            <marker id="arrowhead-output-selected" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#16a34a" />
+            <marker id="arrowhead-output-selected" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+              <path d="M 1 2 L 10 6 L 1 10 z" fill="#22c55e" />
             </marker>
           </defs>
 
@@ -1087,13 +1300,13 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
                 isSelected={selectedConnectorId === connector.id}
                 onSelect={(e) => {
                   setSelectedConnectorId(connector.id);
-                  setSelectedId(null);
+                  setSelectedIds([]); setShowProperties(false);
                 }}
               />
             );
           })}
 
-          {/* Drag-to-Connect Preview Line */}
+          {/* Drag-to-Connect Neon Preview Line */}
           {connectingState && (() => {
             const sourceObj = objects.find((o) => o.id === connectingState.sourceObjectId);
             if (!sourceObj) return null;
@@ -1102,27 +1315,53 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
 
             return (
               <g>
+                {/* Neon blur glow under preview */}
                 <line
                   x1={sourcePoint?.x || 0}
                   y1={sourcePoint?.y || 0}
                   x2={targetPoint?.x || 0}
                   y2={targetPoint?.y || 0}
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  markerEnd="url(#arrowhead-selected)"
+                  stroke="#c084fc"
+                  strokeWidth={6}
+                  strokeLinecap="round"
+                  className="pointer-events-none opacity-40 blur-[2px]"
+                />
+                <line
+                  x1={sourcePoint?.x || 0}
+                  y1={sourcePoint?.y || 0}
+                  x2={targetPoint?.x || 0}
+                  y2={targetPoint?.y || 0}
+                  stroke="#a855f7"
+                  strokeWidth={2.75}
+                  strokeDasharray="6 4"
+                  strokeLinecap="round"
+                  markerEnd="url(#arrowhead)"
                   className="pointer-events-none"
                 />
                 <circle
                   cx={sourcePoint?.x || 0}
                   cy={sourcePoint?.y || 0}
-                  r={3.5}
-                  fill="#3b82f6"
+                  r={4.5}
+                  fill="#a855f7"
                   className="pointer-events-none"
                 />
               </g>
             );
           })()}
+          {/* Multi-selection Box */}
+          {selectionBox && (
+            <rect
+              x={Math.min(selectionBox.startX, selectionBox.endX)}
+              y={Math.min(selectionBox.startY, selectionBox.endY)}
+              width={Math.abs(selectionBox.endX - selectionBox.startX)}
+              height={Math.abs(selectionBox.endY - selectionBox.startY)}
+              fill="rgba(168, 85, 247, 0.2)"
+              stroke="#a855f7"
+              strokeWidth={1 / viewport.zoom}
+              className="pointer-events-none"
+            />
+          )}
+          
           {/* Active Drawing Path */}
           {currentPath && currentPath.points.length > 0 && (
             <path
@@ -1147,66 +1386,116 @@ export default function Canvas({ workspaceId, onSaveTrigger, onSaveComplete }: {
             codeBox={targetObj.data as CodeBoxData}
             isHeader={targetObj.type === "header"}
             onClose={handleCloseCodeBox}
-            onSave={(data) => handleSaveCodeBox(codeBoxModal.objectId, data)}
+            onSave={(data) => handleSaveCodeBox(codeBoxModal.objectId, data)} 
             onRunGraph={targetObj.type === "codebox" ? handleRunGraphForCodeBox : undefined}
           />
         );
       })()}
 
-      {/* Context Menu */}
-      {contextMenu && (
+            {/* Context Menu (For Canvas Background Only) */}
+      {contextMenu && !contextMenu.objectId && (
         <div
           className="absolute z-50 min-w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-lg overflow-hidden py-1 text-sm text-slate-700 dark:text-slate-300"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {contextMenu.objectId ? (
-            <>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleDuplicateSelected(); setContextMenu(null); }}>Duplicate</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => {
-                if (contextMenu.objectId) {
-                  updateObjects(prev => {
-                    const idx = prev.findIndex(o => o.id === contextMenu.objectId);
-                    if (idx < prev.length - 1) {
-                      const next = [...prev];
-                      const obj = next.splice(idx, 1)[0];
-                      next.splice(idx + 1, 0, obj);
-                      return next;
-                    }
-                    return prev;
-                  });
-                }
-                setContextMenu(null);
-              }}>Bring Forward</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => {
-                if (contextMenu.objectId) {
-                  updateObjects(prev => {
-                    const idx = prev.findIndex(o => o.id === contextMenu.objectId);
-                    if (idx > 0) {
-                      const next = [...prev];
-                      const obj = next.splice(idx, 1)[0];
-                      next.splice(idx - 1, 0, obj);
-                      return next;
-                    }
-                    return prev;
-                  });
-                }
-                setContextMenu(null);
-              }}>Send Backward</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-red-600 dark:text-red-400" onClick={() => { handleDeleteSelected(); setContextMenu(null); }}>Delete</button>
-            </>
-          ) : (
-            <>
-              <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Add Object</div>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("rectangle"); setContextMenu(null); }}>Rectangle</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("circle"); setContextMenu(null); }}>Circle</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("text"); setContextMenu(null); }}>Text</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("codebox"); setContextMenu(null); }}>CodeBox</button>
-              <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("output"); setContextMenu(null); }}>Output</button>
-            </>
-          )}
+          <div className="px-4 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Add Object</div>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("rectangle"); setContextMenu(null); }}>Rectangle</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("circle"); setContextMenu(null); }}>Circle</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("text"); setContextMenu(null); }}>Text</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("codebox"); setContextMenu(null); }}>CodeBox</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("codebox-main"); setContextMenu(null); }}>Main Code</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("codebox-function"); setContextMenu(null); }}>Function Code</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("output"); setContextMenu(null); }}>Output</button>
+          <button className="w-full text-left px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => { handleAddObject("header"); setContextMenu(null); }}>Header</button>
         </div>
       )}
+
+      {/* Floating Object Toolbar (Canva Style) */}
+      {selectedIds.length === 1 && (() => {
+        const obj = objects.find(o => o.id === selectedIds[0]);
+        if (!obj) return null;
+        const screenPos = worldToScreen(obj.x, obj.y, viewport);
+        const currentSize = obj.style?.fontSize ?? (obj.type === 'codebox' ? 11 : (obj.type === 'text' ? 14 : 12));
+        const isBold = obj.style?.fontWeight === 'bold';
+        
+        return (
+          <div
+            className="absolute z-40 flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl rounded-full px-3 py-1.5 transition-all"
+            style={{ 
+              top: Math.max(10, screenPos.y - 60), 
+              left: Math.max(10, screenPos.x),
+              transform: 'translateX(0)' 
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="Properties" onClick={() => setShowProperties(true)}>
+              <Settings className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+            <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="Decrease Text Size" onClick={() => handleUpdateObject(obj.id, obj.data || {}, { ...(obj.style || {}), fontSize: Math.max(6, currentSize - 2) })}>
+              <Minus className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-medium w-6 text-center text-slate-600 dark:text-slate-300">{currentSize}</span>
+            <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="Increase Text Size" onClick={() => handleUpdateObject(obj.id, obj.data || {}, { ...(obj.style || {}), fontSize: currentSize + 2 })}>
+              <Plus className="w-4 h-4" />
+            </button>
+            <button className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors ${isBold ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30" : "text-slate-600 dark:text-slate-300"}`} title="Toggle Bold" onClick={() => handleUpdateObject(obj.id, obj.data || {}, { ...(obj.style || {}), fontWeight: isBold ? 'normal' : 'bold' })}>
+              <Bold className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+            <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="Duplicate" onClick={() => handleDuplicateSelected()}>
+              <Copy className="w-4 h-4" />
+            </button>
+            <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="Bring Forward" onClick={() => {
+                updateObjects(prev => {
+                  const idx = prev.findIndex(o => o.id === obj.id);
+                  if (idx < prev.length - 1) {
+                    const next = [...prev];
+                    const o = next.splice(idx, 1)[0];
+                    next.splice(idx + 1, 0, o);
+                    return next;
+                  }
+                  return prev;
+                });
+            }}>
+              <ArrowUpToLine className="w-4 h-4" />
+            </button>
+            <button className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="Send Backward" onClick={() => {
+                updateObjects(prev => {
+                  const idx = prev.findIndex(o => o.id === obj.id);
+                  if (idx > 0) {
+                    const next = [...prev];
+                    const o = next.splice(idx, 1)[0];
+                    next.splice(idx - 1, 0, o);
+                    return next;
+                  }
+                  return prev;
+                });
+            }}>
+              <ArrowDownToLine className="w-4 h-4" />
+            </button>
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+            <button className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full text-red-600 dark:text-red-400 transition-colors" title="Delete" onClick={() => handleDeleteSelected()}>
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

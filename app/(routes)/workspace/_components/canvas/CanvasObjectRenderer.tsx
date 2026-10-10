@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef, useEffect } from "react";
 import { useTheme } from "next-themes";
@@ -18,6 +18,7 @@ interface CanvasObjectRendererProps {
   onLeaveConnectionPoint?: () => void;
   onUpdateData: (newData: Record<string, any>) => void;
   onOpenCodeBox?: (id: string) => void;
+    onRunCodeBox?: (id: string, e: React.PointerEvent) => void;
   onContextMenu?: (e: React.MouseEvent) => void;
   onDeleteObject?: (id: string) => void;
   isDrawingMode?: boolean;
@@ -43,6 +44,7 @@ export default function CanvasObjectRenderer({
   onLeaveConnectionPoint,
   onUpdateData,
   onOpenCodeBox,
+    onRunCodeBox,
   onContextMenu,
   onDeleteObject,
   isDrawingMode = false,
@@ -51,14 +53,16 @@ export default function CanvasObjectRenderer({
   const isDark = theme === "dark";
   const [isHovered, setIsHovered] = useState(false);
   const [isEditingText, setIsEditingText] = useState(false);
-  const [textValue, setTextValue] = useState(object.data?.text || "Text");
+  const [textValue, setTextValue] = useState(object.data?.text || object.data?.label || "");
   const textInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (object.data?.text !== undefined) {
+    if (object.type === "text" && object.data?.text !== undefined) {
       setTextValue(object.data.text);
+    } else if (object.data?.label !== undefined) {
+      setTextValue(object.data.label);
     }
-  }, [object.data?.text]);
+  }, [object.data?.text, object.data?.label, object.type]);
 
   useEffect(() => {
     if (isEditingText && textInputRef.current) {
@@ -71,7 +75,6 @@ export default function CanvasObjectRenderer({
     e.stopPropagation();
     onSelect(e);
     if (!isEditingText) {
-      e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       onStartDrag(e);
     }
@@ -79,13 +82,12 @@ export default function CanvasObjectRenderer({
 
   const handleResizePointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
-    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     onStartResize(e);
   };
 
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (object.type === "text") {
+    if (object.type === "text" || object.type === "rectangle" || object.type === "circle") {
       e.stopPropagation();
       setIsEditingText(true);
     } else if (object.type === "codebox" || object.type === "header") {
@@ -96,14 +98,22 @@ export default function CanvasObjectRenderer({
 
   const handleTextBlur = () => {
     setIsEditingText(false);
-    onUpdateData({ ...object.data, text: textValue });
+    if (object.type === "text" || object.type === "rectangle" || object.type === "circle") {
+      onUpdateData({ ...object.data, text: textValue });
+    } else {
+      onUpdateData({ ...object.data, label: textValue });
+    }
   };
 
   const handleTextKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       setIsEditingText(false);
-      onUpdateData({ ...object.data, text: textValue });
+      if (object.type === "text") {
+        onUpdateData({ ...object.data, text: textValue });
+      } else {
+        onUpdateData({ ...object.data, label: textValue });
+      }
     }
   };
 
@@ -114,7 +124,7 @@ export default function CanvasObjectRenderer({
       case "rectangle":
         return (
           <div
-            className="w-full h-full rounded-xl bg-white/90 shadow-sm flex items-center justify-center p-2 text-center text-xs font-medium text-slate-700 dark:bg-slate-900/90 dark:text-slate-300 transition-colors"
+            className={`w-full h-full rounded-xl bg-white/90 shadow-sm flex items-center justify-center p-2 text-center text-slate-700 dark:bg-slate-900/90 dark:text-slate-300 transition-colors ${object.style?.fontWeight === 'bold' ? 'font-bold' : 'font-medium'}`}
             style={{
               backgroundColor: object.style?.fill,
               borderColor: object.style?.stroke,
@@ -122,29 +132,55 @@ export default function CanvasObjectRenderer({
               borderStyle: "solid",
               borderRadius: object.style?.borderRadius ?? 10,
               opacity: object.style?.opacity ?? 1,
+              fontSize: object.style?.fontSize ? `${object.style.fontSize}px` : "12px",
             }}
           >
-            <span className="select-none pointer-events-none truncate max-w-full">
-              {object.data?.label || ""}
-            </span>
+            {isEditingText ? (
+              <textarea
+                ref={textInputRef}
+                value={textValue}
+                onChange={(e) => setTextValue(e.target.value)}
+                onBlur={handleTextBlur}
+                onKeyDown={handleTextKeyDown}
+                className="w-full h-full resize-none bg-transparent p-1 text-center text-slate-900 outline-none dark:text-slate-100 flex items-center justify-center"
+                style={{ alignContent: "center" }}
+              />
+            ) : (
+              <span className="select-none pointer-events-none break-words text-center w-full max-w-full px-2" style={{ color: object.style?.color || (isDark ? "#ffffff" : "#000000") }}>
+                {object.data?.label || ""}
+              </span>
+            )}
           </div>
         );
 
       case "circle":
         return (
           <div
-            className="w-full h-full rounded-full bg-white/90 shadow-sm flex items-center justify-center p-2 text-center text-xs font-medium text-slate-700 dark:bg-slate-900/90 dark:text-slate-300 transition-colors"
+            className={`w-full h-full rounded-full bg-white/90 shadow-sm flex items-center justify-center p-2 text-center text-slate-700 dark:bg-slate-900/90 dark:text-slate-300 transition-colors ${object.style?.fontWeight === 'bold' ? 'font-bold' : 'font-medium'}`}
             style={{
               backgroundColor: object.style?.fill,
               borderColor: object.style?.stroke,
               borderWidth: object.style?.strokeWidth ?? 2,
               borderStyle: "solid",
               opacity: object.style?.opacity ?? 1,
+              fontSize: object.style?.fontSize ? `${object.style.fontSize}px` : "12px",
             }}
           >
-            <span className="select-none pointer-events-none truncate max-w-full">
-              {object.data?.label || ""}
-            </span>
+            {isEditingText ? (
+                <textarea
+                  ref={textInputRef}
+                  value={textValue}
+                  onChange={(e) => setTextValue(e.target.value)}
+                  onBlur={handleTextBlur}
+                  onKeyDown={handleTextKeyDown}
+                  className="w-full h-full resize-none bg-transparent p-0 text-center outline-none"
+                  style={{ color: "inherit" }}
+                />
+              ) : (
+                <span className="select-none pointer-events-none max-w-full break-words whitespace-pre-wrap">
+                  {object.data?.label || ""}
+                </span>
+              )}
           </div>
         );
 
@@ -252,25 +288,47 @@ export default function CanvasObjectRenderer({
           badgeClass = "bg-blue-600 text-white shadow-sm";
         }
 
+        const codeBoxFontSize = object.style?.fontSize ?? 11;
+
         return (
-          <div
-            onDoubleClick={handleDoubleClick}
-            className={`w-full h-full rounded-xl border flex flex-col justify-between p-1 shadow-sm transition-all select-none overflow-hidden ${wrapperClass}`}
-          >
-            {/* Header with Role and Language Badges */}
-            <div className="flex items-center justify-between gap-1 mb-1">
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${badgeClass}`}
-              >
-                {role}
-              </span>
-              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {lang}
-              </span>
-            </div>
+                      <div
+              onDoubleClick={handleDoubleClick}
+              className={`w-full h-full rounded-xl border flex flex-col justify-between p-1 shadow-sm transition-all select-none overflow-hidden ${wrapperClass}`}
+            >
+              {/* Header with Role and Language Badges */}
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <div className="flex items-center gap-1">
+                  <span
+                    className={`font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${badgeClass}`}
+                    style={{ fontSize: `${Math.max(8, codeBoxFontSize - 1)}px` }}
+                  >
+                    {role}
+                  </span>
+                  <span 
+                    className="font-mono font-medium px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    style={{ fontSize: `${Math.max(8, codeBoxFontSize - 1)}px` }}
+                  >
+                    {lang}
+                  </span>
+                </div>
+                <button 
+                  onPointerDown={(e) => { e.stopPropagation(); onRunCodeBox?.(object.id, e); }}
+                  className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded p-1 cursor-pointer z-10 mr-1"
+                  title="Run Code"
+                >
+                  {object.data?.isRunning ? (
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                  ) : (
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                  )}
+                </button>
+              </div>
 
             {/* Code Preview */}
-            <div className={`flex-1 overflow-hidden font-mono text-[11px] leading-[1.5] rounded-md border shadow-inner flex ${isDark ? 'bg-[#1e1e1e] border-[#2d2d2d]' : 'bg-[#fffffe] border-slate-200'}`}>
+            <div 
+              className={`flex-1 overflow-hidden font-mono leading-[1.5] rounded-md border shadow-inner flex ${isDark ? 'bg-[#1e1e1e] border-[#2d2d2d]' : 'bg-[#fffffe] border-slate-200'}`}
+              style={{ fontSize: `${codeBoxFontSize}px`, fontWeight: object.style?.fontWeight === 'bold' ? 'bold' : 'normal' }}
+            >
               <div className={`flex flex-col text-right select-none w-7 shrink-0 pr-2 py-1.5 border-r pointer-events-none ${isDark ? 'text-[#858585] border-[#2d2d2d] bg-[#1e1e1e]' : 'text-slate-400 border-slate-200 bg-[#fffffe]'}`}>
                 {lines.length > 0 ? (
                   lines.map((_: string, i: number) => (
@@ -295,6 +353,23 @@ export default function CanvasObjectRenderer({
                   )}
                 </div>
               </div>
+              
+              {/* Terminal in down */}
+              {object.data?.outputVisible && object.data?.output && (
+                <div 
+                  className="mt-1 min-h-[40px] h-1/3 bg-[#0f111a] text-emerald-400 font-mono overflow-auto rounded-md p-1 border border-slate-700 relative z-10 pointer-events-auto flex flex-col" 
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <div className="text-[8px] flex justify-between items-center uppercase tracking-wider text-slate-500 mb-1 sticky top-0 bg-[#0f111a] px-1 py-0.5 shrink-0">
+                    <span>Terminal</span>
+                    <button onClick={(e) => { e.stopPropagation(); onUpdateData({ ...object.data, outputVisible: false }); }} className="text-red-400 hover:text-red-300">Close</button>
+                  </div>
+                  <pre style={{ fontSize: `${Math.max(8, codeBoxFontSize - 2)}px` }} className="whitespace-pre-wrap break-words px-1 m-0 flex-1">
+                    {object.data.output}
+                  </pre>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -302,6 +377,7 @@ export default function CanvasObjectRenderer({
 
       case "header": {
         const { language = "cpp", code = "" } = object.data || {};
+          const codeBoxFontSize = object.style?.fontSize ?? 11;
         const cleanCode = code.replace(/^\n+|\n+$/g, "");
         const lines = cleanCode ? cleanCode.split("\n") : [];
         
@@ -346,6 +422,23 @@ export default function CanvasObjectRenderer({
                   )}
                 </div>
               </div>
+              
+              {/* Terminal in down */}
+              {object.data?.outputVisible && object.data?.output && (
+                <div 
+                  className="mt-1 min-h-[40px] h-1/3 bg-[#0f111a] text-emerald-400 font-mono overflow-auto rounded-md p-1 border border-slate-700 relative z-10 pointer-events-auto flex flex-col" 
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <div className="text-[8px] flex justify-between items-center uppercase tracking-wider text-slate-500 mb-1 sticky top-0 bg-[#0f111a] px-1 py-0.5 shrink-0">
+                    <span>Terminal</span>
+                    <button onClick={(e) => { e.stopPropagation(); onUpdateData({ ...object.data, outputVisible: false }); }} className="text-red-400 hover:text-red-300">Close</button>
+                  </div>
+                  <pre style={{ fontSize: `${Math.max(8, codeBoxFontSize - 2)}px` }} className="whitespace-pre-wrap break-words px-1 m-0 flex-1">
+                    {object.data.output}
+                  </pre>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -498,3 +591,9 @@ export default function CanvasObjectRenderer({
     </div>
   );
 }
+
+
+
+
+
+

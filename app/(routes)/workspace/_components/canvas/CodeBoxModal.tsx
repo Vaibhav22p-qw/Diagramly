@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Editor from '@monaco-editor/react';
@@ -13,11 +13,12 @@ interface CodeBoxModalProps {
   codeBox: CodeBoxData;
   onClose: () => void;
   onSave: (data: CodeBoxData) => void;
+  onChange?: (data: CodeBoxData) => void;
   onRunGraph?: (data: CodeBoxData) => Promise<{ output?: string; error?: string }>;
   isHeader?: boolean;
 }
 
-export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave, onRunGraph }: CodeBoxModalProps) {
+export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave, onChange, onRunGraph }: CodeBoxModalProps) {
   const { theme } = useTheme();
   const [role, setRole] = useState<CodeBoxRole>(codeBox.role || 'main');
   const [language, setLanguage] = useState(codeBox.language);
@@ -26,6 +27,10 @@ export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave,
   const [outputVisible, setOutputVisible] = useState(!!codeBox.outputVisible);
   const [isRunning, setIsRunning] = useState(false);
   const [isRunningGraph, setIsRunningGraph] = useState(false);
+
+  useEffect(() => {
+    onChange?.({ role, language, code, output, outputVisible });
+  }, [role, language, code, output, outputVisible, onChange]);
 
   useEffect(() => {
     // Reset when a different CodeBox is opened
@@ -98,8 +103,8 @@ export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave,
                   className="border rounded px-2 py-1 text-sm bg-white dark:bg-slate-900 font-medium"
                 >
                   <option value="unassigned" disabled>Select Role...</option>
-                  <option value="main">Main</option>
-                  <option value="function">Function</option>
+                  <option value="main">Main (Execution Entry)</option>
+                  <option value="function">Function / Class</option>
                   <option value="header">Header</option>
                 </select>
               </>
@@ -160,7 +165,7 @@ export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave,
           {!isHeader && (
             <div className="flex space-x-2">
               <Button type="button" variant="outline" onClick={handleRun} disabled={isRunning || isRunningGraph}>
-                {isRunning ? 'Running…' : 'Run'}
+                {isRunning ? 'Running...' : 'Run'}
               </Button>
               {role === 'main' && onRunGraph && (
                 <Button
@@ -169,7 +174,7 @@ export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave,
                   onClick={handleRunGraph}
                   disabled={isRunning || isRunningGraph}
                 >
-                  {isRunningGraph ? 'Running Graph…' : 'Run Graph'}
+                  {isRunningGraph ? 'Running Graph...' : 'Run Graph'}
                 </Button>
               )}
             </div>
@@ -179,3 +184,4 @@ export default function CodeBoxModal({ open, codeBox, isHeader, onClose, onSave,
     </Dialog>
   );
 }
+

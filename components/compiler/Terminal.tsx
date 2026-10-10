@@ -25,9 +25,6 @@ export default function Terminal({
 }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
 
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop =
@@ -43,76 +40,7 @@ export default function Terminal({
   };
 
   return (
-    <div
-      className={`flex flex-col w-full bg-black text-white border-t border-slate-00 ${
-        isMaximized
-          ? "fixed inset-0 z-50"
-          : "h-full"
-      }`}
-    >
-      {/* Terminal Toolbar */}
-      <div className="h-9 shrink-0 flex items-center justify-between bg-white border-b border-[#000] px-2">
-        <div className="flex items-center gap-1">
-          {/* Terminal control */}
-          <button
-            type="button"
-            title="Terminal"
-            className="px-2 py-1 text-xs text-black hover:bg-[#2b2b2b] rounded"
-          >
-            Terminal
-          </button>
-
-          {/* Clear */}
-          <button
-            type="button"
-            onClick={handleClear}
-            title="Clear terminal"
-            className="px-2 py-1 text-xs text-black hover:text-white hover:bg-[#2b2b2b] rounded"
-          >
-            Clear
-          </button>
-          {/* Settings */}
-          <button
-            type="button"
-            onClick={() =>
-              setShowSettings((prev) => !prev)
-            }
-            title="Terminal settings"
-            className="px-2 py-1 text-xs text-gray-400 hover:text-white hover:bg-[#2b2b2b] rounded"
-          >
-            ⚙
-          </button>
-        </div>
-
-        {/* Input indicator */}
-        <div className="flex items-center gap-2 text-[11px]">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              isRunning
-                ? "bg-yellow-400 animate-pulse"
-                : "bg-emerald-500"
-            }`}
-          />
-
-          <span className="text-gray-400">
-            {isRunning ? "Running" : "Input"}
-          </span>
-        </div>
-      </div>
-
-      {/* Settings */}
-      {showSettings && (
-        <div className="absolute right-2 mt-9 z-20 w-48 rounded-lg border border-[#333] bg-[#1b1b1b] p-3 shadow-xl">
-          <div className="text-xs font-medium text-gray-200 mb-2">
-            Terminal Settings
-          </div>
-
-          <div className="text-[11px] text-gray-500">
-            Comming soon....
-          </div>
-        </div>
-      )}
-
+    <div className="flex flex-col h-full w-full bg-black text-white border-t border-[#333]">
       {/* Terminal Output */}
       <div
         ref={terminalRef}

@@ -1,12 +1,13 @@
 import React from "react";
 import { CanvasObject, Connector } from "./types";
-import { Bold, Italic, Underline, Image as ImageIcon } from "lucide-react";
+import { Bold, Italic, Underline, Image as ImageIcon, X } from "lucide-react";
 
 interface PropertiesPanelProps {
   selectedObject: CanvasObject | null;
   selectedConnector: Connector | null;
   onUpdateObject: (id: string, newData: Record<string, any>, newStyle: Record<string, any>) => void;
   onUpdateConnector: (id: string, newStyle: Record<string, any>) => void;
+  onClose?: () => void;
 }
 
 const COLORS = [
@@ -27,8 +28,10 @@ export default function PropertiesPanel({
   selectedConnector,
   onUpdateObject,
   onUpdateConnector,
+  onClose,
 }: PropertiesPanelProps) {
   if (!selectedObject && !selectedConnector) return null;
+  if (selectedObject && (selectedObject.type === "codebox" || selectedObject.type === "codebox-main" || selectedObject.type === "codebox-function")) return null;
 
   const handleStyleChange = (key: string, value: any) => {
     if (selectedObject) {
@@ -105,10 +108,17 @@ export default function PropertiesPanel({
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className="absolute top-20 right-4 w-48 bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg p-3 z-30 select-none overflow-y-auto max-h-[80vh]"
+      className="absolute top-20 left-4 w-48 bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg p-3 z-30 select-none overflow-y-auto max-h-[80vh]"
     >
-      <div className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-3 border-b pb-2 dark:border-slate-800">
-        Properties
+      <div className="flex justify-between items-center mb-3 border-b pb-2 dark:border-slate-800">
+        <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+          Properties
+        </span>
+        {onClose && (
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {selectedConnector && (

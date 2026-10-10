@@ -1,7 +1,7 @@
 export const CANVAS_WIDTH = 3000;
 export const CANVAS_HEIGHT = 2000;
 
-export type CanvasObjectType = "rectangle" | "circle" | "text" | "image" | "codebox" | "header" | "path" | "output";
+export type CanvasObjectType = "rectangle" | "circle" | "text" | "image" | "codebox" | "codebox-main" | "codebox-function" | "header" | "path" | "output";
 
 export interface CanvasObjectStyle {
   fill?: string;

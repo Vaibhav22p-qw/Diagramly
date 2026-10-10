@@ -188,7 +188,7 @@ function Workspace({ workspaceId }: WorkspaceProps) {
 
   const openPanel = useCallback(async (panel: WorkspacePanel) => {
     const currentlyOpen = (Object.keys(openPanels) as WorkspacePanel[]).filter((key) => openPanels[key]);
-    const limit = panelMode === "two" ? 2 : 3;
+    const limit = 3;
     const oldest = currentlyOpen.length >= limit ? recentPanels.find((key) => openPanels[key]) : undefined;
     if (oldest === "document" && !(await saveDocument())) {
       setSaveError("Document could not be saved. The panel change was cancelled.");
@@ -258,22 +258,44 @@ function Workspace({ workspaceId }: WorkspaceProps) {
     ? "grid-cols-1"
     : "grid-cols-1 md:grid-cols-2";
 
+  const [code, setCode] = useState<string>("");
+  const [languageKey, setLanguageKey] = useState<any>("cpp");
+  const [incomingCode, setIncomingCode] = useState<{code: string, language: string, triggerId: number} | undefined>(undefined);
+
+  const handleCodeToCanvas = useCallback(() => {
+    setIncomingCode({ code, language: languageKey, triggerId: Date.now() });
+    openPanel("canvas");
+  }, [code, languageKey, openPanel]);
+
   const workspaceContent = (
     <div className="h-[calc(100vh-4rem)] min-w-0 overflow-hidden">
       {showDashboard && <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950"><DashboardView /></div>}
       <div className={`h-full flex flex-col md:flex-row ${showDashboard ? "hidden" : ""}`}>
-        <div id="editor-container" className={`min-w-0 h-full overflow-auto shrink-0 ${editorWidthClass} ${openPanels.document ? "block" : "hidden"}`}>
+        <div
+          id="editor-container"
+          className={`min-w-0 h-full overflow-auto shrink-0 ${editorWidthClass} ${openPanels.document ? "block" : "hidden"} ${
+            openPanels.document && (openPanels.compiler || openPanels.canvas)
+              ? "border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800"
+              : ""
+          }`}
+        >
           <Editor workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} />
         </div>
         <div className={`relative min-w-0 h-full overflow-hidden shrink-0 ${mainAreaWidthClass}`}>
           <div
             className={`h-full w-full grid ${compilerCanvasGridColumns}`}
           >
-            <div className={`min-w-0 h-full overflow-hidden ${openPanels.compiler ? "block" : "hidden"}`}>
-              <Compiler />
+            <div
+              className={`min-w-0 h-full overflow-hidden ${openPanels.compiler ? "block" : "hidden"} ${
+                openPanels.compiler && openPanels.canvas
+                  ? "border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800"
+                  : ""
+              }`}
+            >
+              <Compiler code={code} setCode={setCode} languageKey={languageKey} setLanguageKey={setLanguageKey} />
             </div>
             <div className={`min-w-0 h-full overflow-hidden ${openPanels.canvas ? "block" : "hidden"}`}>
-              <Canvas workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} />
+              <Canvas workspaceId={workspaceId!} onSaveTrigger={documentSaveTrigger} onSaveComplete={handleDocumentSaveResult} incomingCode={incomingCode} />
             </div>
           </div>
         </div>
@@ -357,6 +379,7 @@ function Workspace({ workspaceId }: WorkspaceProps) {
           onPanelToggle={handlePanelToggle}
           onPanelModeChange={handlePanelModeChange}
           onDashboard={handleDashboard}
+          onCodeToCanvas={handleCodeToCanvas}
         />
 
         {saveError && <div role="alert" className="absolute left-1/2 top-20 z-[60] -translate-x-1/2 rounded-lg bg-red-600 px-4 py-2 text-sm text-white shadow-lg">{saveError}</div>}

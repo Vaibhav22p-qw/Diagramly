@@ -46,8 +46,10 @@ export default function CanvasToolbar({
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className="absolute top-1/2 right-4 -translate-y-1/2 z-30 flex flex-col items-center gap-2 rounded-xl border border-slate-200/80 bg-white/90 p-2 shadow-lg shadow-slate-200/40 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-none select-none"
+      className="absolute top-1/2 right-4 -translate-y-1/2 z-30 flex flex-col items-center gap-2 rounded-xl border border-purple-500/20 bg-purple-500/10 p-2 shadow-lg shadow-slate-200/40 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-none select-none"
     >
+
+
       {/* Selection Mode Indicator */}
       <button
         type="button"
@@ -136,6 +138,24 @@ export default function CanvasToolbar({
          title="Add CodeBox"
        >
          <code className="h-4 w-4 text-purple-500 font-bold block">{"{}"}</code>
+       </button>
+
+       <button
+         type="button"
+         onClick={() => onAddObject("codebox-main")}
+         className="flex items-center justify-center p-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors dark:text-slate-300 dark:hover:bg-slate-800"
+         title="Add Main Code"
+       >
+         <span className="text-xs font-bold text-purple-600 block">M</span>
+       </button>
+
+       <button
+         type="button"
+         onClick={() => onAddObject("codebox-function")}
+         className="flex items-center justify-center p-2 rounded-lg text-slate-700 hover:bg-slate-100 transition-colors dark:text-slate-300 dark:hover:bg-slate-800"
+         title="Add Function Code"
+       >
+         <span className="text-xs font-bold text-purple-600 block">F</span>
        </button>
 
        <button

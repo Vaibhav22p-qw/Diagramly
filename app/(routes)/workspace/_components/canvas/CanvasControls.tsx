@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2 } from "lucide-react";
 import { MIN_ZOOM, MAX_ZOOM } from "./types";
 
 interface CanvasControlsProps {
@@ -27,8 +27,28 @@ export default function CanvasControls({
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className="absolute bottom-4 right-4 z-30 flex items-center gap-1 rounded-xl border border-slate-200/80 bg-white/90 p-1 shadow-lg shadow-slate-200/40 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-none select-none"
+      className="absolute bottom-4 left-4 z-30 flex items-center gap-1 rounded-xl border border-purple-500/20 bg-purple-500/10 p-1 shadow-lg shadow-slate-200/40 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-none select-none"
     >
+      <button
+        type="button"
+        onClick={() => document.dispatchEvent(new CustomEvent("diagramly-canvas-undo"))}
+        className={btnClass}
+        title="Undo (Ctrl+Z)"
+      >
+        <Undo2 className="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => document.dispatchEvent(new CustomEvent("diagramly-canvas-redo"))}
+        className={btnClass}
+        title="Redo (Ctrl+Y)"
+      >
+        <Redo2 className="h-4 w-4" />
+      </button>
+
+      <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+
       <button
         type="button"
         onClick={onZoomOut}
@@ -36,7 +56,7 @@ export default function CanvasControls({
         className={btnClass}
         title="Zoom Out (Ctrl + Scroll Down)"
       >
-        <ZoomOut className="h-3.5 w-3.5" />
+        <ZoomOut className="h-4 w-4" />
       </button>
 
       <button
@@ -55,10 +75,10 @@ export default function CanvasControls({
         className={btnClass}
         title="Zoom In (Ctrl + Scroll Up)"
       >
-        <ZoomIn className="h-3.5 w-3.5" />
+        <ZoomIn className="h-4 w-4" />
       </button>
 
-      <div className="h-4 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
+      <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
 
       <button
         type="button"
@@ -66,7 +86,7 @@ export default function CanvasControls({
         className={btnClass}
         title="Center / Reset Canvas View"
       >
-        <Maximize2 className="h-3.5 w-3.5" />
+        <Maximize2 className="h-4 w-4" />
       </button>
     </div>
   );
