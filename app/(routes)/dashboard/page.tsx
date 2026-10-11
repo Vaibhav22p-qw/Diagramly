@@ -6,14 +6,14 @@ import DashboardView from "@/components/dashboard/DashboardView";
 
 function Dashboard() {
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="min-h-screen bg-slate-50/60 dark:bg-slate-950">
       {/* HEADER */}
-      <div className="border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950 sm:px-6 lg:px-8">
+      <div className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/70 px-4 py-3 backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/70 sm:px-6 lg:px-8">
         <Header />
       </div>
 
       <DashboardView />
-    </main>
+    </div>
   );
 }
 

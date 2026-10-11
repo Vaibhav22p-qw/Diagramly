@@ -6,7 +6,7 @@ import SideNavBottomSection from "./SideNavBottomSection";
 
 function SideNav() {
   return (
-    <div className="fixed flex h-screen w-72 flex-col border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+    <div className="fixed flex h-screen w-72 flex-col border-r border-slate-200/70 bg-white/80 p-4 backdrop-blur-md dark:border-slate-800/70 dark:bg-slate-950/80">
       <SideNavTopSection />
 
       <div className="flex-1" />

@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  FileText,
-  Home,
-  LayoutGrid,
-  Star,
-  Trash2,
-  Users2,
-} from "lucide-react";
+import { Home, LayoutGrid } from "lucide-react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import React from "react";
@@ -30,30 +23,6 @@ function SideNavTopSection() {
       icon: LayoutGrid,
       path: "/dashboard/workspaces",
     },
-    {
-      id: 3,
-      name: "Favorites",
-      icon: Star,
-      path: "/dashboard/favorites",
-    },
-    {
-      id: 4,
-      name: "Shared With Me",
-      icon: Users2,
-      path: "/dashboard/shared",
-    },
-    {
-      id: 5,
-      name: "Templates",
-      icon: FileText,
-      path: "/dashboard/templates",
-    },
-    {
-      id: 6,
-      name: "Trash",
-      icon: Trash2,
-      path: "/dashboard/trash",
-    },
   ];
 
   return (
@@ -61,29 +30,32 @@ function SideNavTopSection() {
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-2 py-1">
         <Image
-          src="/diahead.gif"
+          src="/logo.png"
           width={42}
           height={42}
           alt="Diagramly"
-          className="rounded-lg object-cover"
+          className="object-contain"
         />
-        <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
-          Diagramly
-        </h2>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
+            Diagramly
+          </h2>
+          <p className="text-[10px] font-medium uppercase tracking-wider text-purple-600 dark:text-purple-400">
+            Workspace Hub
+          </p>
+        </div>
       </div>
 
       {/* Divider */}
-      <div className="border-b border-slate-200 dark:border-slate-800" />
+      <div className="border-b border-slate-200/60 dark:border-slate-800/60" />
 
       {/* Navigation Options */}
       <div className="flex flex-col gap-1">
-        {/* Section Label */}
-        <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Workspace
+        <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Workspaces
         </p>
 
         {menuItems.map((item) => {
-          // Strict match for base route (/dashboard), prefix match for sub-routes
           const isActive =
             item.path === "/dashboard"
               ? pathname === "/dashboard"
@@ -94,16 +66,16 @@ function SideNavTopSection() {
               key={item.id}
               variant="ghost"
               onClick={() => router.push(item.path)}
-              className={`w-full justify-start gap-3 font-medium text-sm transition-colors ${
+              className={`w-full justify-start gap-3 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                  ? "bg-purple-50 text-purple-700 hover:bg-purple-100/80 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900/50"
                   : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               }`}
             >
               <item.icon
                 className={`h-4 w-4 ${
                   isActive
-                    ? "text-blue-600 dark:text-blue-400"
+                    ? "text-purple-600 dark:text-purple-400"
                     : "text-slate-500"
                 }`}
               />

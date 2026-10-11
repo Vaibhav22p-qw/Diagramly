@@ -12,72 +12,40 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  HelpCircle,
-  Keyboard,
-  MessageSquare,
-  Plus,
-  Settings,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 function SideNavBottomSection() {
-  const router = useRouter();
   const [workspaceName, setWorkspaceName] = useState("");
   const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
-  const handleOpenCreateWorkspace = () => {
-    setOpen(true);
-  };
+    const handleOpenCreateWorkspace = () => {
+      setOpen(true);
+    };
 
-  window.addEventListener(
-    "open-create-workspace",
-    handleOpenCreateWorkspace
-  );
-
-  return () => {
-    window.removeEventListener(
+    window.addEventListener(
       "open-create-workspace",
       handleOpenCreateWorkspace
     );
-  };
-}, []);
-  const menuItems = [
-    {
-      id: 1,
-      name: "Settings",
-      icon: Settings,
-      path: "/settings",
-    },
-    {
-      id: 2,
-      name: "Help Center",
-      icon: HelpCircle,
-      path: "/help",
-    },
-    {
-      id: 3,
-      name: "Keyboard Shortcuts",
-      icon: Keyboard,
-      path: "/shortcuts",
-    },
-    {
-      id: 4,
-      name: "Feedback",
-      icon: MessageSquare,
-      path: "/feedback",
-    },
-  ];
+
+    return () => {
+      window.removeEventListener(
+        "open-create-workspace",
+        handleOpenCreateWorkspace
+      );
+    };
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmed = workspaceName.trim();
-
-    if (trimmed.length < 4) return;
+    if (trimmed.length < 3) return;
 
     try {
+      setIsSubmitting(true);
       const res = await fetch("/api/workspaces", {
         method: "POST",
         headers: {
@@ -91,57 +59,59 @@ function SideNavBottomSection() {
 
       const data = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !data.success) {
         alert(data.message || "Failed to create workspace");
         return;
       }
 
-      console.log("Workspace created:", data.workspace);
+      window.dispatchEvent(
+        new CustomEvent("workspace-created", {
+          detail: data.workspace,
+        })
+      );
 
-window.dispatchEvent(
-  new CustomEvent("workspace-created", {
-    detail: data.workspace,
-  })
-);
-
-setWorkspaceName("");
-setOpen(false);
+      setWorkspaceName("");
+      setOpen(false);
     } catch (error) {
-      console.error(error);
-      alert("Something went wrong.");
+      console.error("Create workspace error:", error);
+      alert("Something went wrong while creating your workspace.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-4 p-2 mt-auto">
+    <div className="mt-auto flex flex-col gap-3 p-2">
       {/* Create New Workspace Action */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button className="w-full justify-start gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm">
+          <Button className="w-full justify-start gap-2 bg-gradient-to-r from-purple-600 to-fuchsia-600 font-medium text-white shadow-md shadow-purple-500/20 hover:from-purple-700 hover:to-fuchsia-700">
             <Plus className="h-4 w-4" />
             New Workspace
           </Button>
         </DialogTrigger>
 
-        <DialogContent>
+        <DialogContent className="border border-slate-200/80 bg-white/95 backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-900/95 sm:max-w-md">
           <form onSubmit={handleCreate}>
             <DialogHeader>
-              <DialogTitle>Create Workspace</DialogTitle>
-              <DialogDescription>
-                Give your workspace a name to start collaborating and creating diagrams.
+              <DialogTitle className="text-slate-900 dark:text-slate-100">
+                Create Workspace
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 dark:text-slate-400">
+                Give your workspace a name to start drawing diagrams, writing notes, and collaborating.
               </DialogDescription>
             </DialogHeader>
 
             <Input
               autoFocus
-              placeholder="Enter Workspace Name"
-              className="mt-3"
-              minLength={4}
+              placeholder="e.g. Architecture Flow, Sprint Diagram"
+              className="mt-3 border-slate-200/80 focus-visible:ring-purple-500 dark:border-slate-700"
+              minLength={3}
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
             />
 
-            <DialogFooter className="mt-4">
+            <DialogFooter className="mt-4 gap-2 sm:gap-0">
               <DialogClose asChild>
                 <Button type="button" variant="outline">
                   Cancel
@@ -149,33 +119,15 @@ setOpen(false);
               </DialogClose>
               <Button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={workspaceName.trim().length < 4}
+                className="bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white hover:from-purple-700 hover:to-fuchsia-700"
+                disabled={workspaceName.trim().length < 3 || isSubmitting}
               >
-                Create Workspace
+                {isSubmitting ? "Creating..." : "Create Workspace"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Divider */}
-      <div className="border-b border-slate-200 dark:border-slate-800" />
-
-      {/* Bottom Auxiliary Links */}
-      <div className="flex flex-col gap-1">
-        {menuItems.map((item) => (
-          <Button
-            key={item.id}
-            variant="ghost"
-            onClick={() => router.push(item.path)}
-            className="w-full justify-start gap-3 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 font-normal text-sm"
-          >
-            <item.icon className="h-4 w-4 text-slate-500" />
-            {item.name}
-          </Button>
-        ))}
-      </div>
     </div>
   );
 }

@@ -3,23 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
-  Bell,
-  FileText,
-  HelpCircle,
   Home,
-  Keyboard,
   LayoutGrid,
   Menu,
-  MessageSquare,
   Moon,
-  Send,
-  Settings,
-  Star,
+  Plus,
   Sun,
-  Trash2,
-  Users2,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -30,6 +20,7 @@ function Header() {
   const { theme, setTheme } = useTheme();
   const darkMode = theme === "dark";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
   const pathname = usePathname();
 
@@ -37,9 +28,20 @@ function Header() {
     setTheme(darkMode ? "light" : "dark");
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+    window.dispatchEvent(new CustomEvent("workspace-search", { detail: val }));
+  };
+
   const navigate = (path: string) => {
     setMobileMenuOpen(false);
     router.push(path);
+  };
+
+  const handleCreateWorkspace = () => {
+    setMobileMenuOpen(false);
+    window.dispatchEvent(new CustomEvent("open-create-workspace"));
   };
 
   const menuItems = [
@@ -53,49 +55,6 @@ function Header() {
       icon: LayoutGrid,
       path: "/dashboard/workspaces",
     },
-    {
-      name: "Favorites",
-      icon: Star,
-      path: "/dashboard/favorites",
-    },
-    {
-      name: "Shared With Me",
-      icon: Users2,
-      path: "/dashboard/shared",
-    },
-    {
-      name: "Templates",
-      icon: FileText,
-      path: "/dashboard/templates",
-    },
-    {
-      name: "Trash",
-      icon: Trash2,
-      path: "/dashboard/trash",
-    },
-  ];
-
-  const bottomItems = [
-    {
-      name: "Settings",
-      icon: Settings,
-      path: "/settings",
-    },
-    {
-      name: "Help Center",
-      icon: HelpCircle,
-      path: "/help",
-    },
-    {
-      name: "Keyboard Shortcuts",
-      icon: Keyboard,
-      path: "/shortcuts",
-    },
-    {
-      name: "Feedback",
-      icon: MessageSquare,
-      path: "/feedback",
-    },
   ];
 
   return (
@@ -104,47 +63,52 @@ function Header() {
       {/* DESKTOP HEADER */}
       {/* ============================= */}
 
-      <div className="hidden w-full items-center justify-end gap-2 lg:flex">
-        <div className="flex items-center gap-2 rounded-md border border-gray-200 px-2.5 py-1.5 transition focus-within:border-blue-600 focus-within:ring-1 focus-within:ring-blue-600/20">
+      <div className="hidden w-full items-center justify-between gap-4 lg:flex">
+        {/* LIVE SEARCH BAR */}
+        <div className="flex max-w-md flex-1 items-center gap-2 rounded-lg border border-slate-200/80 bg-white/70 px-3 py-1.5 backdrop-blur-sm transition focus-within:border-purple-500 focus-within:ring-2 focus-within:ring-purple-500/20 dark:border-slate-800/80 dark:bg-slate-900/70">
           <SearchIcon />
-
           <input
             type="text"
-            placeholder="Search"
-            aria-label="Search"
-            className="w-40 bg-transparent text-sm outline-none placeholder:text-gray-400 sm:w-56"
+            placeholder="Search workspaces by name..."
+            aria-label="Search workspaces"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
           />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                window.dispatchEvent(
+                  new CustomEvent("workspace-search", { detail: "" })
+                );
+              }}
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              Clear
+            </button>
+          )}
         </div>
 
-        <button
-          type="button"
-          aria-label="Notifications"
-          className="relative flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
-        >
-          <Bell className="h-4 w-4" />
+        {/* ACTIONS */}
+        <div className="flex items-center gap-3">
+          {/* THEME TOGGLE */}
+          <button
+            type="button"
+            aria-label="Toggle theme"
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 bg-white/70 text-slate-600 backdrop-blur-sm transition hover:border-purple-300 hover:text-purple-600 dark:border-slate-800/80 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:border-purple-800 dark:hover:text-purple-400"
+          >
+            {darkMode ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </button>
 
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-blue-600" />
-        </button>
-
-        <button
-          type="button"
-          aria-label="Toggle theme"
-          onClick={toggleTheme}
-          className="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
-        >
-          {darkMode ? (
-            <Sun className="h-4 w-4" />
-          ) : (
-            <Moon className="h-4 w-4" />
-          )}
-        </button>
-
-        <Button className="flex h-8 gap-2 bg-blue-600 text-sm hover:bg-blue-700">
-          <Send className="h-4 w-4" />
-          Invite
-        </Button>
-
-        <ProfileMenu />
+          {/* PROFILE */}
+          <ProfileMenu />
+        </div>
       </div>
 
       {/* ============================= */}
@@ -152,46 +116,34 @@ function Header() {
       {/* ============================= */}
 
       <div className="flex w-full items-center justify-between lg:hidden">
-
         {/* BRAND */}
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2"
-        >
+        <Link href="/dashboard" className="flex items-center gap-2">
           <Image
-            src="/diahead.gif"
+            src="/logo.png"
             width={34}
             height={34}
             alt="Diagramly"
-            className="rounded-lg"
+            className="object-contain"
           />
-
-          <span className="text-lg font-bold tracking-tight text-slate-900">
+          <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Diagramly
           </span>
         </Link>
 
         {/* ACTIONS */}
-        <div className="flex items-center gap-1.5">
-
-          {/* SEARCH */}
+        <div className="flex items-center gap-2">
+          {/* THEME TOGGLE */}
           <button
             type="button"
-            aria-label="Search"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            aria-label="Toggle theme"
+            onClick={toggleTheme}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 text-slate-600 transition hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
           >
-            <SearchIcon />
-          </button>
-
-          {/* NOTIFICATIONS */}
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50"
-          >
-            <Bell className="h-4 w-4" />
-
-            <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-blue-600" />
+            {darkMode ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
           </button>
 
           {/* PROFILE */}
@@ -202,7 +154,7 @@ function Header() {
             type="button"
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open navigation"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 transition hover:bg-slate-50 active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200/80 text-slate-700 transition hover:bg-slate-50 active:scale-95 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -215,29 +167,28 @@ function Header() {
 
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-black/30 lg:hidden"
+          className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileMenuOpen(false)}
         >
           <aside
-            className="flex h-full w-[280px] flex-col bg-white shadow-2xl"
+            className="flex h-full w-[280px] flex-col border-r border-slate-200/80 bg-white/95 shadow-2xl backdrop-blur-md dark:border-slate-800/80 dark:bg-slate-950/95"
             onClick={(e) => e.stopPropagation()}
           >
             {/* DRAWER HEADER */}
-            <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+            <div className="flex h-16 items-center justify-between border-b border-slate-200/80 px-4 dark:border-slate-800/80">
               <Link
                 href="/dashboard"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2"
               >
                 <Image
-                  src="/diahead.gif"
+                  src="/logo.png"
                   width={34}
                   height={34}
                   alt="Diagramly"
-                  className="rounded-lg"
+                  className="object-contain"
                 />
-
-                <span className="text-lg font-bold text-slate-900">
+                <span className="text-lg font-bold text-slate-900 dark:text-slate-100">
                   Diagramly
                 </span>
               </Link>
@@ -245,7 +196,7 @@ function Header() {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -253,7 +204,6 @@ function Header() {
 
             {/* NAVIGATION */}
             <div className="flex-1 overflow-y-auto p-4">
-
               <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 Workspace
               </p>
@@ -261,7 +211,6 @@ function Header() {
               <div className="space-y-1">
                 {menuItems.map((item) => {
                   const Icon = item.icon;
-
                   const isActive =
                     item.path === "/dashboard"
                       ? pathname === "/dashboard"
@@ -275,60 +224,34 @@ function Header() {
                       onClick={() => navigate(item.path)}
                       className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium transition ${
                         isActive
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-slate-700 hover:bg-slate-100"
+                          ? "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300"
+                          : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                       }`}
                     >
                       <Icon
                         className={`h-4 w-4 ${
                           isActive
-                            ? "text-blue-600"
+                            ? "text-purple-600 dark:text-purple-400"
                             : "text-slate-500"
                         }`}
                       />
-
                       {item.name}
                     </button>
                   );
                 })}
               </div>
 
-              <div className="my-5 border-t border-slate-200" />
+              <div className="my-5 border-t border-slate-200/80 dark:border-slate-800/80" />
 
-              {/* NEW WORKSPACE */}
+              {/* NEW WORKSPACE ACTION */}
               <button
                 type="button"
-                onClick={() => navigate("/dashboard")}
-                className="flex h-11 w-full items-center gap-3 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700"
+                onClick={handleCreateWorkspace}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-purple-600 to-fuchsia-600 px-3 text-sm font-medium text-white shadow-md shadow-purple-500/20 transition hover:from-purple-700 hover:to-fuchsia-700"
               >
-                <span className="text-lg leading-none">+</span>
+                <Plus className="h-4 w-4" />
                 New Workspace
               </button>
-
-              <div className="my-5 border-t border-slate-200" />
-
-              <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                More
-              </p>
-
-              <div className="space-y-1">
-                {bottomItems.map((item) => {
-                  const Icon = item.icon;
-
-                  return (
-                    <button
-                      key={item.path}
-                      type="button"
-                      onClick={() => navigate(item.path)}
-                      className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-600 transition hover:bg-slate-100"
-                    >
-                      <Icon className="h-4 w-4 text-slate-500" />
-
-                      {item.name}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </aside>
         </div>
@@ -337,11 +260,10 @@ function Header() {
   );
 }
 
-/* Small reusable search icon */
 function SearchIcon() {
   return (
     <svg
-      className="h-4 w-4 text-gray-400"
+      className="h-4 w-4 shrink-0 text-slate-400"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

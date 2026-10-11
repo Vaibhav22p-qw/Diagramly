@@ -86,8 +86,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 shadow-xl shadow-gray-100">
         {/* Header */}
         <div className="mb-8 text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-blue-600 text-xl font-bold text-white shadow-md shadow-blue-500/20">
-            <img src="/diahead.gif" alt="" className="h-full w-full object-cover" />
+          <div className="inline-flex h-14 w-14 items-center justify-center">
+            <img src="/logo.png" alt="Diagramly" className="h-full w-full object-contain" />
           </div>
           <h1 className="mt-4 text-2xl font-bold tracking-tight text-gray-900">
             Create your account

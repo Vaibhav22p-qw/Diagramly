@@ -115,11 +115,11 @@ function WorkspaceHeader({
           className="shrink-0"
         >
           <Image
-            src="/diahead.gif"
+            src="/logo.png"
             alt="Logo"
             width={40}
             height={40}
-            className="cursor-pointer transition-transform duration-200 hover:scale-105"
+            className="cursor-pointer object-contain transition-transform duration-200 hover:scale-105"
           />
         </Link>
 

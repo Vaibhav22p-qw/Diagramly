@@ -176,8 +176,15 @@ export async function PATCH(
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       return NextResponse.json({ success: false, message: "Invalid authentication token" }, { status: 401 });
     }
-    const { document: documentData, canvas: canvasData } = await req.json();
+    const body = await req.json();
+    const { document: documentData, canvas: canvasData, title, isFavorite } = body;
     const updateSet: any = {};
+    if (typeof title === "string" && title.trim().length > 0) {
+      updateSet.title = title.trim();
+    }
+    if (typeof isFavorite === "boolean") {
+      updateSet.isFavorite = isFavorite;
+    }
     if (documentData && documentData.version === 1 && Array.isArray(documentData.content)) {
       updateSet.document = documentData;
     }
@@ -195,12 +202,55 @@ export async function PATCH(
       { new: true }
     );
     if (!workspace) return NextResponse.json({ success: false, message: "Workspace not found" }, { status: 404 });
-    return NextResponse.json({ success: true, document: workspace.document, canvas: workspace.canvas });
+    return NextResponse.json({
+      success: true,
+      workspace,
+      document: workspace.document,
+      canvas: workspace.canvas,
+    });
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
       return NextResponse.json({ success: false, message: "Invalid or expired authentication token" }, { status: 401 });
     }
-    console.error("Failed to save document:", error);
-    return NextResponse.json({ success: false, message: "Failed to save document" }, { status: 500 });
+    console.error("Failed to update workspace:", error);
+    return NextResponse.json({ success: false, message: "Failed to update workspace" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await connectDB();
+    const { id } = await params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ success: false, message: "Invalid workspace ID" }, { status: 400 });
+    }
+    const token = req.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload;
+    const userId = decoded.id || decoded.userId || decoded._id;
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return NextResponse.json({ success: false, message: "Invalid authentication token" }, { status: 401 });
+    }
+
+    const workspace = await Workspace.findOneAndUpdate(
+      { _id: id, ownerId: new mongoose.Types.ObjectId(userId) },
+      { $set: { isTrashed: true } },
+      { new: true }
+    );
+
+    if (!workspace) {
+      return NextResponse.json({ success: false, message: "Workspace not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: "Workspace moved to trash" });
+  } catch (error) {
+    if (error instanceof jwt.JsonWebTokenError) {
+      return NextResponse.json({ success: false, message: "Invalid or expired authentication token" }, { status: 401 });
+    }
+    console.error("Failed to delete workspace:", error);
+    return NextResponse.json({ success: false, message: "Failed to delete workspace" }, { status: 500 });
   }
 }
